@@ -1,0 +1,19 @@
+{
+  "Kommuner": [
+    {
+      "Kommunenummer": "0301",
+      "GyldigFra": null,
+      "GyldigTil": null,
+      "NyttKommunenummer": null
+    }
+  ],
+  "Skjemaer": [
+    {
+      "Arkivreferanse": "AR123456789",
+      "Skjematype": "Søknad om rammetillatelse",
+      "Tiltakstyper": [
+        "nyttanlegg"
+      ]
+    }
+  ]
+}

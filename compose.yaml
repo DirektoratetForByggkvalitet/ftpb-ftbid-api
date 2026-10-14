@@ -1,0 +1,48 @@
+name: ftpb-ftbid-api
+
+services:
+  api:
+    image: ftpb-ftbid-api:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    init: true
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Local
+      ASPNETCORE_HTTP_PORTS: 8080
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=ftbid;Username=ftbid;Password=ftbid_lokal"
+      Maskinporten__Aktivert: "true"
+      Matrikkel__Brukernavn: "${MATRIKKEL_BRUKERNAVN:-}"
+      Matrikkel__Passord: "${MATRIKKEL_PASSORD:-}"
+    volumes:
+      - ./data/referansedata.eksempel.json:/data/referansedata.eksempel.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/helse"]
+      interval: 10s
+      timeout: 3s
+      start_period: 20s
+      retries: 6
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:55432:5432"
+    environment:
+      POSTGRES_USER: ftbid
+      POSTGRES_PASSWORD: ftbid_lokal
+      POSTGRES_DB: ftbid
+    volumes:
+      - ftbid-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ftbid -d ftbid"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+volumes:
+  ftbid-postgres:

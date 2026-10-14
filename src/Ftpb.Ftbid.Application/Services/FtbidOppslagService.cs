@@ -1,0 +1,45 @@
+using Ftpb.Ftbid.Application.Konfigurasjon;
+using Ftpb.Ftbid.Application.Kontrakter;
+using Ftpb.Ftbid.Application.Lagring;
+using Ftpb.Ftbid.Domain.Prosjekter;
+using Ftpb.Ftbid.Domain.Referansedata;
+using static Ftpb.Ftbid.Application.Validering.FtbidValidering;
+using Ftpb.Ftbid.Domain.Feil.Unntak;
+using FtbidEntitet = Ftpb.Ftbid.Domain.Prosjekter.Ftbid;
+
+namespace Ftpb.Ftbid.Application.Services;
+
+/// <summary>Henter og søker i prosjekter og setter sammen resultatmodeller.</summary>
+public sealed class FtbidOppslagService(IFtbidLager lager, FtbidInnstillinger innstillinger) : IFtbidOppslagService
+{
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<FtbidResultat>> HentAsync(string ftbid, CancellationToken avbrudd = default) =>
+        (await lager.HentAsync(NormaliserFtbid(ftbid, innstillinger), avbrudd)).Select(TilResultat).ToList();
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<FtbidResultat>> SokAsync(FtbidSok filter, CancellationToken avbrudd = default)
+    {
+        if (string.IsNullOrWhiteSpace(filter.Kommunenummer) && filter.Gaardsnummer is null &&
+            filter.Bruksnummer is null && string.IsNullOrWhiteSpace(filter.Prosjektnavn) && string.IsNullOrWhiteSpace(filter.Adresse))
+            throw new SøkeparameterManglerException();
+        if (filter.Gaardsnummer < 0 || filter.Bruksnummer < 0) throw new UgyldigSøkenummerException();
+        return (await lager.SokAsync(filter, avbrudd)).Select(TilResultat).ToList();
+    }
+
+    private static FtbidResultat TilResultat(FtbidEntitet prosjekt)
+    {
+        var matrikler = prosjekt.Matrikkelopplysninger.OrderBy(m => m.Rekkefolge).ToList();
+        var hoved = matrikler.First();
+        var adresser = prosjekt.Adresser.OrderBy(a => a.Rekkefolge).Select(a => a.Adressetekst).ToList();
+        return new() { Ftbid = prosjekt.Ean, Kommunenummer = hoved.Kommunenummer, Gaardsnummer = hoved.Gaardsnummer,
+            Bruksnummer = hoved.Bruksnummer, Festenummer = hoved.Festenummer, Seksjonsnummer = hoved.Seksjonsnummer,
+            Adresse = adresser.FirstOrDefault(), Adresser = adresser, Prosjektnavn = prosjekt.Prosjektnavn,
+            Prosjektnummer = prosjekt.Prosjektnummer,
+            EksternProsjektreferanse = prosjekt.EksternProsjektreferanse, KommunaltSaksnummer = prosjekt.KommunaltSaksnummer,
+            Tiltakshaver = prosjekt.Tiltakshaver, Organisasjonsnummer = prosjekt.Organisasjonsnummer,
+            Bygningsnummer = prosjekt.Bygningsnummer, Tiltakstype = prosjekt.Tiltakstype,
+            Matrikkelopplysninger = matrikler.Select(m => new Matrikkeldata(m.Kommunenummer, m.Gaardsnummer, m.Bruksnummer, m.Festenummer, m.Seksjonsnummer)).ToList(),
+            TilknyttedeSkjemaer = prosjekt.Identifikasjonsmetadata.OrderBy(m => m.Arkivreferanse)
+                .Select(m => new TilknyttetSkjema(m.Arkivreferanse, m.Skjemametadata.Skjematype, m.Skjemametadata.Tiltakstyper)).ToList() };
+    }
+}
