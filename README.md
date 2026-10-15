@@ -388,6 +388,33 @@ dotnet run --project src/Ftpb.Ftbid.Api --no-launch-profile -- --migrer
 dotnet Ftpb.Ftbid.Api.dll --migrer
 ```
 
+### Azure PostgreSQL med Entra ID
+
+Passordløs databaseautentisering støttes med [Microsoft.Azure.PostgreSQL.Auth](https://learn.microsoft.com/en-us/dotnet/api/overview/azure/microsoft.azure.postgresql.auth-readme?view=azure-dotnet) og `DefaultAzureCredential`. Sett følgende i kjøremiljøet:
+
+```text
+Database__BrukEntraId=true
+ConnectionStrings__Postgres=Host=<server>.postgres.database.azure.com;Port=5432;Database=<database>;SSL Mode=VerifyFull
+```
+
+Tilkoblingen skal ikke inneholde `Password` eller `Passfile`. Biblioteket bestemmer brukernavn fra identitetens token og leverer nye token ved tilkobling. `SSL Mode=VerifyFull` anbefales; `Require` og `VerifyCA` godtas også. Npgsql forvalter en delt datakilde og tilkoblingspool, slik at autentiseringen ikke konfigureres på nytt for hver HTTP-forespørsel.
+
+I Azure kan applikasjonen bruke systemtildelt managed identity. For en brukertildelt managed identity settes også `AZURE_CLIENT_ID` til identitetens klient-ID. Workload identity eller service principal kan brukes gjennom Azure Identitys standardmiljøvariabler. Se [Azure Identity](https://learn.microsoft.com/en-us/dotnet/api/overview/azure/identity-readme) for de ulike legitimasjonstypene.
+
+PostgreSQL-serveren må ha Entra ID-autentisering og en Entra-administrator konfigurert. Applikasjonens identitet må være opprettet som databasebruker med nødvendige rettigheter. Migrasjonsidentiteten trenger dessuten rettigheter til å endre databaseskjemaet. Azure-ressurser, databasebrukere og tillatelser opprettes ikke av dette prosjektet.
+
+Ved direkte lokal kjøring mot Azure kan utvikleren logge inn med `az login` før `dotnet run`. Rider bruker miljøvariablene i kjørekonfigurasjonen. En lokal Docker-container arver ikke vertsmaskinens Azure CLI-innlogging; den må få en tilgjengelig legitimasjon i sitt eget miljø. Prosjektets vanlige Compose-oppsett fortsetter å bruke lokal PostgreSQL med passord og `Database:BrukEntraId=false` som standard.
+
+API-et, `--migrer` og `--importer` bruker samme oppsett. Også `dotnet ef` støtter Entra ID gjennom miljøvariablene `Database__BrukEntraId` og `ConnectionStrings__Postgres`; design-time-fabrikken leser ikke API-ets appsettings-filer. Eksempel i et miljø der legitimasjon er tilgjengelig:
+
+```sh
+export Database__BrukEntraId=true
+export ConnectionStrings__Postgres='Host=<server>.postgres.database.azure.com;Database=<database>;SSL Mode=VerifyFull'
+dotnet ef database update --project src/Ftpb.Ftbid.Infrastructure --startup-project src/Ftpb.Ftbid.Api
+```
+
+Ingen migrasjon av databaseskjemaet er nødvendig for å bytte autentiseringsmetode. Enhetstestene bruker syntetiske token og kontrollerer konfigurasjonen uten Azure-tilgang; et ekte Entra ID-databaseinnloggingsforsøk må verifiseres i Azure-miljøet.
+
 Opprett nye migrasjoner med det lokale EF-verktøyet:
 
 ```sh

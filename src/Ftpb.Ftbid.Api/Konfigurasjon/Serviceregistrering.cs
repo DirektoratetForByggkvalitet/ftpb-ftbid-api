@@ -36,7 +36,8 @@ public static class Serviceregistrering
         }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
         services.AddScoped<IMatrikkelService, MatrikkelService>();
         services.AddSingleton(ftbidInnstillinger);
-        services.AddDbContext<FtbidDbContext>(valg => valg.UseNpgsql(tilkobling));
+        var brukEntraId = konfigurasjon.GetValue<bool>("Database:BrukEntraId");
+        services.AddDbContext<FtbidDbContext>(valg => PostgresOppsett.Konfigurer(valg, tilkobling, brukEntraId));
         services.AddSingleton<IFtbidDublettService, FtbidDublettService>();
         services.AddScoped<IFtbidLager, PostgresFtbidLager>();
         services.AddScoped<IFtbidEiendomslager, PostgresFtbidEiendomslager>();
