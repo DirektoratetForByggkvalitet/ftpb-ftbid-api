@@ -1,4 +1,5 @@
 using Ftpb.Ftbid.Api.Autentisering;
+using Ftpb.Ftbid.Domain.Prosjekter;
 using Ftpb.Ftbid.Application.Kontrakter;
 using Ftpb.Ftbid.Application.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -62,8 +63,16 @@ public sealed class FtbidKontroller(IFtbidOpprettingService oppretting, IFtbidOp
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")]
     public async Task<ActionResult<IReadOnlyList<FtbidResultat>>> SokAsync(CancellationToken avbrudd,
         [FromQuery] string? kommunenummer = null, [FromQuery] int? gaardsnummer = null,
-        [FromQuery] int? bruksnummer = null, [FromQuery] string? prosjektnavn = null, [FromQuery] string? adresse = null) =>
-        Ok(await oppslag.SokAsync(new(kommunenummer, gaardsnummer, bruksnummer, prosjektnavn, adresse), avbrudd));
+        [FromQuery] int? bruksnummer = null, [FromQuery] string? prosjektnavn = null, [FromQuery] string? adresse = null,
+        [FromQuery] string? ftid = null, [FromQuery] FtIdType? ftidtype = null,
+        [FromQuery] string? tiltaksnavn = null, [FromQuery] string? tiltakstype = null,
+        [FromQuery] string? eksternprosjektreferanse = null, [FromQuery] string? kommunaltsaksnummer = null,
+        [FromQuery] string? ansvarligsokerorganisasjonsnummer = null, [FromQuery] string? bygningsnummer = null,
+        [FromQuery] string? bruksenhetsnummer = null, [FromQuery] int? festenummer = null,
+        [FromQuery] int? seksjonsnummer = null) =>
+        Ok(await oppslag.SokAsync(new(kommunenummer, gaardsnummer, bruksnummer, prosjektnavn, adresse,
+            ftid, ftidtype, tiltaksnavn, tiltakstype, eksternprosjektreferanse, kommunaltsaksnummer,
+            ansvarligsokerorganisasjonsnummer, bygningsnummer, bruksenhetsnummer, festenummer, seksjonsnummer), avbrudd));
 
     /// <summary>Henter prosjekt og metadata med full ftbid eller de siste åtte sifrene.</summary>
     [HttpGet("{ftbid}")]

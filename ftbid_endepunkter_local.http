@@ -19,6 +19,9 @@ Content-Type: application/json
   "Bruksnummer": 1,
   "Prosjektnavn": "Lokalt eksempelprosjekt",
   "System": "Lokale HTTP-eksempler",
+  "FtIdType": "Ftbid",
+  "AnsvarligSokerOrganisasjonsnummer": "123456789",
+  "Bruksenhetsnummer": "H0101",
   "Adresser": ["Karl Johans gate 1", "Storgata 2"],
   "Matrikkelopplysninger": [
     { "Kommunenummer": "0301", "Gaardsnummer": 20, "Bruksnummer": 2, "Festenummer": 0, "Seksjonsnummer": 1 }
@@ -44,6 +47,18 @@ Content-Type: application/json
 
 ### Søk i adresser og prosjektnavn
 GET {{adresse}}/api/ftbid/sok?adresse=storgata&prosjektnavn=Lokalt%20eksempelprosjekt
+Authorization: Bearer {{token}}
+
+### Søk med FtID og type
+GET {{adresse}}/api/ftbid/sok?ftid={{opprettet_ftbid}}&ftidtype=Ftbid
+Authorization: Bearer {{token}}
+
+### Søk med ansvarlig søker, bruksenhet og tiltaksnavn
+GET {{adresse}}/api/ftbid/sok?ansvarligsokerorganisasjonsnummer=123456789&bruksenhetsnummer=H0101&tiltaksnavn=eksempel
+Authorization: Bearer {{token}}
+
+### Søk i alle fem matrikkelfelter
+GET {{adresse}}/api/ftbid/sok?kommunenummer=0301&gaardsnummer=20&bruksnummer=2&festenummer=0&seksjonsnummer=1
 Authorization: Bearer {{token}}
 
 ### Hent prosjekt og identifikasjonsmetadata

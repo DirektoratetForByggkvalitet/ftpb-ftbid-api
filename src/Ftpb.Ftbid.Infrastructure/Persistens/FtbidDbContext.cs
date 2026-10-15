@@ -29,6 +29,8 @@ public sealed class FtbidDbContext(DbContextOptions<FtbidDbContext> alternativer
         ftbid.Property(f => f.KommunaltSaksnummer).HasMaxLength(200);
         ftbid.Property(f => f.Tiltakshaver).HasMaxLength(500);
         ftbid.Property(f => f.Organisasjonsnummer).HasMaxLength(9);
+        ftbid.Property(f => f.AnsvarligSokerOrganisasjonsnummer).HasMaxLength(9);
+        ftbid.Property(f => f.Bruksenhetsnummer).HasMaxLength(50);
         ftbid.Property(f => f.Bygningsnummer).HasMaxLength(50);
         ftbid.Property(f => f.Tiltakstype).HasMaxLength(200);
         ftbid.HasIndex(f => f.Kommunenummer);

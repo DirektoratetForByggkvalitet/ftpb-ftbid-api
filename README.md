@@ -161,11 +161,32 @@ Ved bytte av hovedmatrikkel oppdateres også hovedfeltene og den unike prosjekti
 
 ### Søk
 
-Søkeparametrene er `kommunenummer`, `gaardsnummer`, `bruksnummer`, `prosjektnavn` og `adresse`. Minst én parameter kreves. Matrikkelfiltre er eksakte; navn og alle adresser søkes med deltreff uten hensyn til store og små bokstaver. Alle oppgitte filtre kombineres. Kommunenummer, gårdsnummer og bruksnummer må treffe **samme** matrikkelenhet.
+`GET /api/ftbid/sok` krever minst ett ikke-tomt filter. Alle oppgitte filtre kombineres med **OG**. Tekst trimmes og sammenlignes uten hensyn til store og små bokstaver.
+
+| Kriterium | Søkeparameter | Treffregel |
+| --- | --- | --- |
+| FtID (eksisterende Ftbid) | `ftid` | Eksakt full identifikator eller de siste åtte sifrene, utvidet med konfigurert GS1-prefiks |
+| FtIDType | `ftidtype` | Enum: `Ftbid` (eller `0`), foreløpig eneste verdi |
+| Prosjektnavn/tiltaksnavn | `prosjektnavn`, `tiltaksnavn` | Deltreff i samme prosjektnavn; begge filtre må treffe hvis begge oppgis |
+| Tiltakstype | `tiltakstype` | Eksakt prosjektverdi eller tiltakstype fra et tilknyttet skjema |
+| Ekstern prosjektreferanse | `eksternprosjektreferanse` | Eksakt; bruker eldre `Prosjektnr` som reserve når ekstern referanse mangler |
+| Kommunalt saksnummer | `kommunaltsaksnummer` | Eksakt |
+| Organisasjonsnummer til ansvarlig søker | `ansvarligsokerorganisasjonsnummer` | Eksakt, ni sifre; separat fra `Organisasjonsnummer` for tiltakshaver |
+| Bygningsnummer | `bygningsnummer` | Eksakt |
+| Bruksenhetsnummer | `bruksenhetsnummer` | Eksakt |
+| Adresse | `adresse` | Deltreff i hovedadresse eller sekundæradresse |
+| Kommune og matrikkel | `kommunenummer`, `gaardsnummer`, `bruksnummer`, `festenummer`, `seksjonsnummer` | Eksakte verdier på **samme** hoved- eller sekundærmatrikkelenhet |
+
+Matrikkelnummer må være ikke-negative. Utelatt feste- eller seksjonsnummer avgrenser ikke søket; `0` søker uttrykkelig etter null. Kommunenummer alene er tillatt, må ha fire sifre og kontrolleres ikke mot dagens kommuneregister, slik at historiske data kan søkes. Ugyldige identifikatorer, enumverdier, organisasjonsnummer og tall gir 400 med ProblemDetails.
+
+Oppretting og oppslag inkluderer de nye feltene `FtIdType`, `AnsvarligSokerOrganisasjonsnummer` (ni sifre) og `Bruksenhetsnummer` (maksimalt 50 tegn). `FtIdType` serialiseres som `"Ftbid"` og er standardverdien når feltet utelates. Migrationen `UtvidSokefelter` setter eksisterende prosjekter til denne typen og lar de to nye tekstfeltene være null. Verdiene må registreres ved oppretting for å kunne gi treff; det eksisterende organisasjonsnummeret kopieres ikke til ansvarlig søker.
 
 ```text
 GET /api/ftbid/sok?kommunenummer=0301&gaardsnummer=10
 GET /api/ftbid/sok?adresse=storgata&prosjektnavn=utvidelse
+GET /api/ftbid/sok?ftid=707338700000000014&ftidtype=Ftbid
+GET /api/ftbid/sok?ansvarligsokerorganisasjonsnummer=123456789&bruksenhetsnummer=H0101
+GET /api/ftbid/sok?kommunenummer=0301&gaardsnummer=10&bruksnummer=1&festenummer=0&seksjonsnummer=2
 ```
 
 Dubletter gir 409 med Location og ProblemDetails. Valideringsfeil gir 400 med standard ProblemDetails og norsk feilmelding. Uventede interne feil gir 500 med ProblemDetails, en generell norsk feilmelding og sporingsidentifikator. Dette forbedrer adapterens oppførsel, som også returnerte 400 for interne feil. Manglende eller ugyldig token gir 401; utilstrekkelige scopes gir 403. Oppretting begrenses til 200 forespørsler per minutt per konsument og API-instans, med 429 ved overskridelse.
@@ -211,6 +232,8 @@ Regler med samme betydning gjenbruker NIREGs kode. Ftbids egne regler har koder 
 | V0066 | MatrikkelAutentiseringFeiletException |
 | V0067 | FtbidDublettException (dublett) |
 | V0068 | FtbidDublettException (sannsynlig dublett) |
+| V0069 | UgyldigFtIdTypeException |
+| V0070 | UgyldigOrganisasjonsnummerException |
 
 HTTP-feilhåndteringen bruker ASP.NET Core `IExceptionHandler`, `UseExceptionHandler`, `AddProblemDetails`, `IProblemDetailsService` og `ProblemDetailsFactory`. `UseStatusCodePages` gir samme standardformat for tomme feilsvar, blant annet 401, 403, 404 og 429. Ugyldig JSON og modellbinding får også et problemobjekt med regelkode. Ingen egen håndskrevet HTTP-mellomvare brukes.
 

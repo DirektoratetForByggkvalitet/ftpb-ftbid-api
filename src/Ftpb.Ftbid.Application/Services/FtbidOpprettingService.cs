@@ -15,6 +15,8 @@ public sealed class FtbidOpprettingService(IFtbidLager lager, IKommuneregister k
     /// <inheritdoc />
     public async Task<string> OpprettAsync(OpprettFtbid foresporsel, CancellationToken avbrudd = default)
     {
+        if (!Enum.IsDefined(foresporsel.FtIdType)) throw new UgyldigFtIdTypeException();
+        var ansvarligSoker = NormaliserAnsvarligSoker(foresporsel.AnsvarligSokerOrganisasjonsnummer);
         var navn = KrevTekst(foresporsel.Prosjektnavn, "Prosjektnavn", 500);
         var system = KrevTekst(foresporsel.System, "System", 200);
         var matrikler = new List<Matrikkeldata>();
@@ -44,6 +46,8 @@ public sealed class FtbidOpprettingService(IFtbidLager lager, IKommuneregister k
             KommunaltSaksnummer = ValgfriTekst(foresporsel.KommunaltSaksnummer, "Kommunalt saksnummer", 200),
             Tiltakshaver = ValgfriTekst(foresporsel.Tiltakshaver, "Tiltakshaver", 500),
             Organisasjonsnummer = ValgfriTekst(foresporsel.Organisasjonsnummer, "Organisasjonsnummer", 9),
+            FtIdType = foresporsel.FtIdType, AnsvarligSokerOrganisasjonsnummer = ansvarligSoker,
+            Bruksenhetsnummer = ValgfriTekst(foresporsel.Bruksenhetsnummer, "Bruksenhetsnummer", 50),
             Bygningsnummer = ValgfriTekst(foresporsel.Bygningsnummer, "Bygningsnummer", 50),
             Tiltakstype = ValgfriTekst(foresporsel.Tiltakstype, "Tiltakstype", 200),
             Utstedt = DateTimeOffset.UtcNow,

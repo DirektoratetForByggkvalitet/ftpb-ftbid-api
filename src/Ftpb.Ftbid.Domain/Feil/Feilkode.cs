@@ -57,4 +57,8 @@ public enum Feilkode
     V0067,
     /// <summary>Prosjektopplysningene tyder på en sannsynlig dublett.</summary>
     V0068,
+    /// <summary>Identifikatortypen støttes ikke.</summary>
+    V0069,
+    /// <summary>Ansvarlig søkers organisasjonsnummer har ugyldig format.</summary>
+    V0070,
 }

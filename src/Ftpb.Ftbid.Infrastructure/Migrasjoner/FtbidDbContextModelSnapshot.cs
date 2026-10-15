@@ -70,6 +70,16 @@ namespace Ftpb.Ftbid.Infrastructure.Migrasjoner
                         .HasColumnType("character varying(1000)")
                         .HasColumnName("adresse");
 
+                    b.Property<string>("AnsvarligSokerOrganisasjonsnummer")
+                        .HasMaxLength(9)
+                        .HasColumnType("character varying(9)")
+                        .HasColumnName("ansvarlig_soker_organisasjonsnummer");
+
+                    b.Property<string>("Bruksenhetsnummer")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("bruksenhetsnummer");
+
                     b.Property<int>("Bruksnummer")
                         .HasColumnType("integer")
                         .HasColumnName("bruksnummer");
@@ -87,6 +97,10 @@ namespace Ftpb.Ftbid.Infrastructure.Migrasjoner
                     b.Property<int>("Festenummer")
                         .HasColumnType("integer")
                         .HasColumnName("festenummer");
+
+                    b.Property<int>("FtIdType")
+                        .HasColumnType("integer")
+                        .HasColumnName("ft_id_type");
 
                     b.Property<int>("Gaardsnummer")
                         .HasColumnType("integer")

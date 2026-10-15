@@ -12,6 +12,9 @@ public sealed class Ftbid
     public string? KommunaltSaksnummer { get; set; }
     public string? Tiltakshaver { get; set; }
     public string? Organisasjonsnummer { get; set; }
+    public FtIdType FtIdType { get; set; } = FtIdType.Ftbid;
+    public string? AnsvarligSokerOrganisasjonsnummer { get; set; }
+    public string? Bruksenhetsnummer { get; set; }
     public string? Bygningsnummer { get; set; }
     public string? Tiltakstype { get; set; }
     public string? Adresse { get; set; }

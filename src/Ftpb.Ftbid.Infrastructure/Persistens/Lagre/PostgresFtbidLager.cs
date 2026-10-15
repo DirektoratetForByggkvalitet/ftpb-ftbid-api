@@ -58,11 +58,14 @@ public sealed class PostgresFtbidLager(FtbidDbContext database, IFtbidDublettSer
     {
         var sporring = MedMetadata();
         var kommune = filter.Kommunenummer?.Trim();
-        if (!string.IsNullOrWhiteSpace(kommune) || filter.Gaardsnummer.HasValue || filter.Bruksnummer.HasValue)
+        if (!string.IsNullOrWhiteSpace(kommune) || filter.Gaardsnummer.HasValue || filter.Bruksnummer.HasValue ||
+            filter.Festenummer.HasValue || filter.Seksjonsnummer.HasValue)
             sporring = sporring.Where(f => f.Matrikkelopplysninger.Any(m =>
                 (string.IsNullOrEmpty(kommune) || m.Kommunenummer == kommune) &&
                 (!filter.Gaardsnummer.HasValue || m.Gaardsnummer == filter.Gaardsnummer) &&
-                (!filter.Bruksnummer.HasValue || m.Bruksnummer == filter.Bruksnummer)));
+                (!filter.Bruksnummer.HasValue || m.Bruksnummer == filter.Bruksnummer) &&
+                (!filter.Festenummer.HasValue || m.Festenummer == filter.Festenummer) &&
+                (!filter.Seksjonsnummer.HasValue || m.Seksjonsnummer == filter.Seksjonsnummer)));
         if (!string.IsNullOrWhiteSpace(filter.Prosjektnavn))
         {
             var navn = filter.Prosjektnavn.Trim().ToLowerInvariant();
@@ -72,6 +75,48 @@ public sealed class PostgresFtbidLager(FtbidDbContext database, IFtbidDublettSer
         {
             var adresse = filter.Adresse.Trim().ToLowerInvariant();
             sporring = sporring.Where(f => f.Adresser.Any(a => a.Adressetekst.ToLower().Contains(adresse)));
+        }
+        if (!string.IsNullOrWhiteSpace(filter.Ftbid))
+            sporring = sporring.Where(f => f.Ean == filter.Ftbid);
+        if (filter.FtIdType.HasValue)
+            sporring = sporring.Where(f => f.FtIdType == filter.FtIdType);
+        if (!string.IsNullOrWhiteSpace(filter.Tiltaksnavn))
+        {
+            var navn = filter.Tiltaksnavn.Trim().ToLowerInvariant();
+            sporring = sporring.Where(f => f.NormalisertProsjektnavn.Contains(navn));
+        }
+        if (!string.IsNullOrWhiteSpace(filter.Tiltakstype))
+        {
+            var type = filter.Tiltakstype.Trim().ToLowerInvariant();
+            sporring = sporring.Where(f => (f.Tiltakstype != null && f.Tiltakstype.ToLower() == type) ||
+                f.Identifikasjonsmetadata.Any(i => i.Skjemametadata.Tiltakstyper.Any(t => t.ToLower() == type)));
+        }
+        if (!string.IsNullOrWhiteSpace(filter.EksternProsjektreferanse))
+        {
+            var verdi = filter.EksternProsjektreferanse.Trim().ToLowerInvariant();
+            sporring = sporring.Where(f => f.EksternProsjektreferanse != null
+                ? f.EksternProsjektreferanse.ToLower() == verdi
+                : f.Prosjektnummer != null && f.Prosjektnummer.ToLower() == verdi);
+        }
+        if (!string.IsNullOrWhiteSpace(filter.KommunaltSaksnummer))
+        {
+            var verdi = filter.KommunaltSaksnummer.Trim().ToLowerInvariant();
+            sporring = sporring.Where(f => f.KommunaltSaksnummer != null && f.KommunaltSaksnummer.ToLower() == verdi);
+        }
+        if (!string.IsNullOrWhiteSpace(filter.AnsvarligSokerOrganisasjonsnummer))
+        {
+            var verdi = filter.AnsvarligSokerOrganisasjonsnummer.Trim().ToLowerInvariant();
+            sporring = sporring.Where(f => f.AnsvarligSokerOrganisasjonsnummer != null && f.AnsvarligSokerOrganisasjonsnummer.ToLower() == verdi);
+        }
+        if (!string.IsNullOrWhiteSpace(filter.Bygningsnummer))
+        {
+            var verdi = filter.Bygningsnummer.Trim().ToLowerInvariant();
+            sporring = sporring.Where(f => f.Bygningsnummer != null && f.Bygningsnummer.ToLower() == verdi);
+        }
+        if (!string.IsNullOrWhiteSpace(filter.Bruksenhetsnummer))
+        {
+            var verdi = filter.Bruksenhetsnummer.Trim().ToLowerInvariant();
+            sporring = sporring.Where(f => f.Bruksenhetsnummer != null && f.Bruksenhetsnummer.ToLower() == verdi);
         }
         return await sporring.OrderBy(f => f.Ean).ToListAsync(avbrudd);
     }

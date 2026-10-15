@@ -14,6 +14,15 @@ internal static class FtbidValidering
         return verdi.Length == 8 ? $"{innstillinger.Gs1Prefiks}000{verdi}" : verdi;
     }
 
+    internal static string? NormaliserAnsvarligSoker(string? verdi)
+    {
+        if (string.IsNullOrWhiteSpace(verdi)) return null;
+        var nummer = verdi.Trim();
+        if (nummer.Length != 9 || !nummer.All(char.IsAsciiDigit))
+            throw new UgyldigOrganisasjonsnummerException();
+        return nummer;
+    }
+
     internal static string KrevTekst(string? verdi, string navn, int maks)
     {
         if (string.IsNullOrWhiteSpace(verdi))
