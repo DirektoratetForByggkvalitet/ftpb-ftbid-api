@@ -63,12 +63,12 @@ jobs:
           subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
 
       - name: Check image exists
-        run: az acr repository show --name $REGISTRY --image ftpb-email-api:$VERSION --output none
+        run: az acr repository show --name $REGISTRY --image ftpb-ftbid-api:$VERSION --output none
 
       - name: Deploy container app
         run: |
           az extension add --name containerapp --upgrade --only-show-errors
-          IMAGE=$REGISTRY.azurecr.io/ftpb-email-api:$VERSION
+          IMAGE=$REGISTRY.azurecr.io/ftpb-ftbid-api:$VERSION
           az containerapp update \
             --name $CONTAINER_APP \
             --resource-group $RESOURCE_GROUP \
@@ -79,7 +79,7 @@ jobs:
       - name: Tag image as latest
         run: |
           az acr login --name $REGISTRY
-          REPO=$REGISTRY.azurecr.io/ftpb-email-api
+          REPO=$REGISTRY.azurecr.io/ftpb-ftbid-api
           docker buildx imagetools create --tag $REPO:latest $REPO:$VERSION
           echo "Tagged \`$REPO:$VERSION\` as \`latest\`" >> $GITHUB_STEP_SUMMARY
 
@@ -97,7 +97,7 @@ jobs:
     environment: ${{ inputs.environment }}
     env:
       REGISTRY: crftbid${{ inputs.environment }}
-      REPOSITORY: ftpb-email-api
+      REPOSITORY: ftpb-ftbid-api
       KEEP: 5
     steps:
       - name: Azure login
