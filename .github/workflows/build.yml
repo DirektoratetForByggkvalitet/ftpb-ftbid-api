@@ -1,0 +1,86 @@
+name: Build and Push Container Images
+run-name: Build and push - ${{ github.ref_name }}
+
+# Gitflow: develop -> dev, release/* and hotfix/* -> test, main -> prod.
+# feature/* branches and pull requests are built, but no image is pushed.
+
+permissions:
+  id-token: write
+  contents: read
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'release/**'
+      - 'hotfix/**'
+      - 'feature/**'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.target.outputs.environment }}
+      registry: ${{ steps.target.outputs.registry }}
+      version: ${{ steps.target.outputs.version }}
+    steps:
+      - name: Set environment, registry and version
+        id: target
+        env:
+          BRANCH: ${{ github.ref_name }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          case "$BRANCH" in
+            main)                env=prod; version="2.0.$RUN_NUMBER" ;;
+            release/*|hotfix/*)  env=test; version="2.0.$RUN_NUMBER-rc" ;;
+            develop)             env=dev;  version="2.0.$RUN_NUMBER-beta" ;;
+            *)                   env="";   version="2.0.$RUN_NUMBER-alpha" ;;
+          esac
+          echo "environment=$env" >> $GITHUB_OUTPUT
+          echo "registry=${env:+crftbid$env}" >> $GITHUB_OUTPUT
+          echo "version=$version" >> $GITHUB_OUTPUT
+
+  build-email-api:
+    needs: [setup]
+    runs-on: ubuntu-latest
+    environment: ${{ needs.setup.outputs.environment }}
+    env:
+      IMAGE: ${{ needs.setup.outputs.registry && format('{0}.azurecr.io/', needs.setup.outputs.registry) || '' }}ftpb-email-api:${{ needs.setup.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Azure login
+        if: needs.setup.outputs.environment != ''
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.ARM_CLIENT_ID }}
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
+          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
+      - name: ACR login
+        if: needs.setup.outputs.environment != ''
+        run: az acr login --name ${{ needs.setup.outputs.registry }}
+
+      # Image tag = release version, never 'latest' (see docs/FT-1999-status-drift.md).
+      - name: Build email api
+        run: |
+          docker build -f Dockerfile -t $IMAGE .
+
+      - name: Push email api
+        if: needs.setup.outputs.environment != ''
+        run: |
+          docker push $IMAGE
+          echo "Pushed \`$IMAGE\`" >> $GITHUB_STEP_SUMMARY
+
+  # dev and test deploy automatically; prod is deployed manually via deploy.yml.
+  # deploy:
+  #   needs: [setup, build-email-api]
+  #   if: needs.setup.outputs.environment == 'dev' || needs.setup.outputs.environment == 'test'
+  #   uses: ./.github/workflows/deploy.yml
+  #   with:
+  #     environment: ${{ needs.setup.outputs.environment }}
+  #     version: ${{ needs.setup.outputs.version }}
+  #   secrets: inherit
