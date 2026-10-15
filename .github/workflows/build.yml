@@ -76,11 +76,11 @@ jobs:
           echo "Pushed \`$IMAGE\`" >> $GITHUB_STEP_SUMMARY
 
   # dev and test deploy automatically; prod is deployed manually via deploy.yml.
-  # deploy:
-  #   needs: [setup, build-ftbid-api]
-  #   if: needs.setup.outputs.environment == 'dev' || needs.setup.outputs.environment == 'test'
-  #   uses: ./.github/workflows/deploy.yml
-  #   with:
-  #     environment: ${{ needs.setup.outputs.environment }}
-  #     version: ${{ needs.setup.outputs.version }}
-  #   secrets: inherit
+  deploy:
+    needs: [setup, build-ftbid-api]
+    if: needs.setup.outputs.environment == 'dev' || needs.setup.outputs.environment == 'test'
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: ${{ needs.setup.outputs.environment }}
+      version: ${{ needs.setup.outputs.version }}
+    secrets: inherit
