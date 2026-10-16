@@ -56,7 +56,6 @@ bygger.Services.AddProblemDetails(valg => valg.CustomizeProblemDetails = konteks
     {
         400 => "Ugyldig forespørsel", 401 => "Autentisering kreves", 403 => "Tilgang nektet",
         404 => "Endepunktet finnes ikke", 405 => "HTTP-metoden er ikke tillatt", 429 => "For mange forespørsler",
-        502 => "Ugyldig svar fra Matrikkelen", 503 => "Matrikkelen er ikke tilgjengelig",
         >= 500 => "Intern serverfeil", _ => kontekst.ProblemDetails.Title
     };
 });

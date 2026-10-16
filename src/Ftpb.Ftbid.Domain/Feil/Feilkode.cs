@@ -45,16 +45,8 @@ public enum Feilkode
     V0061,
     /// <summary>En endring av hovedmatrikkelen kolliderer med en eksisterende prosjektidentitet.</summary>
     V0062,
-    /// <summary>Matrikkelnummeret finnes ikke i Kartverkets Matrikkel.</summary>
-    V0063,
-    /// <summary>Kartverket svarte med servicefeil eller oppslaget kunne ikke gjennomføres.</summary>
-    V0064,
-    /// <summary>Kartverkets svar kunne ikke tolkes som et gyldig oppslag.</summary>
-    V0065,
-    /// <summary>Kartverket avviste servicens Basic-autentisering.</summary>
-    V0066,
     /// <summary>Prosjektet er en dublett av en eksisterende ftbid.</summary>
-    V0067,
+    V0067 = 25, // V0063–V0066 er utgått; behold eksisterende enumverdier.
     /// <summary>Prosjektopplysningene tyder på en sannsynlig dublett.</summary>
     V0068,
     /// <summary>Identifikatortypen støttes ikke.</summary>

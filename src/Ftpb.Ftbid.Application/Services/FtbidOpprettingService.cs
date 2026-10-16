@@ -10,7 +10,7 @@ using FtbidEntitet = Ftpb.Ftbid.Domain.Prosjekter.Ftbid;
 namespace Ftpb.Ftbid.Application.Services;
 
 /// <summary>Validerer prosjektdata og oppretter en ftbid etter duplikatkontroll.</summary>
-public sealed class FtbidOpprettingService(IFtbidLager lager, IKommuneregister kommuneregister, IMatrikkelService matrikkelservice, FtbidInnstillinger innstillinger) : IFtbidOpprettingService
+public sealed class FtbidOpprettingService(IFtbidLager lager, IKommuneregister kommuneregister, FtbidInnstillinger innstillinger) : IFtbidOpprettingService
 {
     /// <inheritdoc />
     public async Task<string> OpprettAsync(OpprettFtbid foresporsel, CancellationToken avbrudd = default)
@@ -33,7 +33,7 @@ public sealed class FtbidOpprettingService(IFtbidLager lager, IKommuneregister k
         if (foresporsel.Matrikkelopplysninger is not null) matrikler.AddRange(foresporsel.Matrikkelopplysninger);
         if (matrikler.Count > 100) throw new ForMangeVerdierException("Matrikkelopplysninger", 100);
         for (var i = 0; i < matrikler.Count; i++)
-            matrikler[i] = await MatrikkelValidering.ValiderNyAsync(matrikler[i], kommuneregister, matrikkelservice, avbrudd);
+            matrikler[i] = await MatrikkelValidering.ValiderNyAsync(matrikler[i], kommuneregister, avbrudd);
         var adresser = new List<string>();
         if (!string.IsNullOrWhiteSpace(foresporsel.Adresse)) adresser.Add(foresporsel.Adresse);
         if (foresporsel.Adresser is not null) adresser.AddRange(foresporsel.Adresser);

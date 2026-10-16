@@ -1,5 +1,3 @@
-using Ftpb.Ftbid.Application.Matrikkel;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Ftpb.Ftbid.Api.Autentisering;
 using Ftpb.Ftbid.Domain.Referansedata;
 using Ftpb.Ftbid.Infrastructure.Persistens;
@@ -98,11 +96,6 @@ public sealed class PostgresApiOppsett : IAsyncLifetime
         protected override void ConfigureWebHost(IWebHostBuilder bygger)
         {
             bygger.UseEnvironment("Test");
-            bygger.ConfigureServices(services =>
-            {
-                services.RemoveAll<IMatrikkelKlient>();
-                services.AddSingleton<IMatrikkelKlient, TestMatrikkelKlient>();
-            });
             bygger.ConfigureServices(services => services.PostConfigure<JwtBearerOptions>(MaskinportenAutentisering.Ordning, valg =>
             {
                 var konfigurasjon = new OpenIdConnectConfiguration { Issuer = Utsteder };

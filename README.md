@@ -63,8 +63,8 @@ Hver modell og kontrakt ligger i en egen fil. Mappene og navnerommene beskriver 
 | --- | --- |
 | Api | `Kontrollere`, `Autentisering`, `Feilhandtering`, `Helse`, `Konfigurasjon` |
 | Domain | `Prosjekter`, `Referansedata`, `Identifikatorer`, `Feil/Unntak` |
-| Application | `Kontrakter`, `Services`, `Lagring`, `Validering`, `Matrikkel`, `Konfigurasjon`, `Feil` |
-| Infrastructure | `Persistens/Lagre`, `Referansedata`, `Integrasjoner/Matrikkel`, `Migrasjoner` |
+| Application | `Kontrakter`, `Services`, `Lagring`, `Validering`, `Konfigurasjon`, `Feil` |
+| Infrastructure | `Persistens/Lagre`, `Referansedata`, `Migrasjoner` |
 | Tests | `Enhet`, `Integrasjon`, `Oppsett` |
 
 `FtbidOpprettingService` validerer prosjektdata og oppretter en identifikator. `FtbidDublettService` vurderer dubletter og sannsynlige dubletter før lagring, under PostgreSQL-transaksjonslåsen. `FtbidOppslagService` håndterer søk, oppslag og resultatmodeller. `FtbidTilknytningService` håndterer arkivreferanser. `FtbidEiendomService` validerer tillegg og sletting av adresser og matrikkelenheter, med atomisk lagring gjennom `IFtbidEiendomslager` og `PostgresFtbidEiendomslager`. Servicene har egne grensesnitt som kontrolleren får gjennom avhengighetsinjeksjon.
@@ -108,7 +108,7 @@ API-ruter og JSON-feltnavn er på norsk. Tilknytning bruker `Ftbid` og `Arkivref
 }
 ```
 
-De eksisterende matrikkelfeltene er hovedmatrikkelenheten og legges først i listen. Enkeltadressen legges først i adresselisten. Du kan også bruke kun `Adresser` og `Matrikkelopplysninger`; første verdi blir da hovedverdien. Like verdier fjernes, og rekkefølgen beholdes. Maksimalt 100 adresser og 100 matrikkelopplysninger tillates. Kommuner må være registrert og gyldige på opprettingstidspunktet. Hver matrikkelenhet må i tillegg få et eksakt treff hos Kartverket før oppretting eller tilknytning.
+De eksisterende matrikkelfeltene er hovedmatrikkelenheten og legges først i listen. Enkeltadressen legges først i adresselisten. Du kan også bruke kun `Adresser` og `Matrikkelopplysninger`; første verdi blir da hovedverdien. Like verdier fjernes, og rekkefølgen beholdes. Maksimalt 100 adresser og 100 matrikkelopplysninger tillates. Kommuner må være registrert og gyldige på opprettingstidspunktet.
 
 Oppretting støtter også de valgfrie feltene `EksternProsjektreferanse` (200 tegn), `KommunaltSaksnummer` (200), `Tiltakshaver` (500), `Organisasjonsnummer` (9), `Bygningsnummer` (50) og `Tiltakstype` (200). Feltene lagres og returneres ved oppslag og søk. `Prosjektnavn` brukes også som tiltaksnavn. Det eksisterende `Prosjektnr` beholdes som reserve for ekstern referanse når `EksternProsjektreferanse` mangler.
 
@@ -153,7 +153,7 @@ DELETE /api/ftbid/{ftbid}/adresser?adresse=Storgata%203
 DELETE /api/ftbid/{ftbid}/matrikkelopplysninger?kommunenummer=0301&gaardsnummer=30&bruksnummer=3&festenummer=0&seksjonsnummer=2
 ```
 
-Tillegg av en eksisterende verdi og sletting av en verdi som allerede er borte returnerer også 204. Adressetekst trimmes og sammenlignes uten hensyn til store og små bokstaver. Matrikkelenheter sammenlignes på alle fem feltene. Nye verdier legges sist; maksimalt 100 adresser og 100 matrikkelenheter tillates. Ny matrikkel krever en gyldig kommune og et eksakt treff i Kartverkets Matrikkel. Sletting kontrollerer formatet, men krever ikke at historiske kommunenummer er gyldige i dagens register.
+Tillegg av en eksisterende verdi og sletting av en verdi som allerede er borte returnerer også 204. Adressetekst trimmes og sammenlignes uten hensyn til store og små bokstaver. Matrikkelenheter sammenlignes på alle fem feltene. Nye verdier legges sist; maksimalt 100 adresser og 100 matrikkelenheter tillates. Ny matrikkel krever en gyldig kommune i prosjektets kommuneregister. Sletting kontrollerer formatet, men krever ikke at historiske kommunenummer er gyldige i dagens register.
 
 Neste gjenværende verdi blir hovedverdi hvis hovedadressen eller hovedmatrikkelen fjernes. Alle adresser kan fjernes, slik at hovedadressen blir null. Minst én matrikkelenhet må beholdes; sletting av den siste gir `V0061`. Ftbid, prosjektnavn og tilknyttede skjemaer bevares.
 
@@ -226,10 +226,6 @@ Regler med samme betydning gjenbruker NIREGs kode. Ftbids egne regler har koder 
 | V0060 | UgyldigMaskinportenkonfigurasjonException |
 | V0061 | SisteMatrikkelKanIkkeFjernesException |
 | V0062 | ProsjektidentitetAlleredeIBrukException |
-| V0063 | MatrikkelenhetIkkeFunnetException |
-| V0064 | MatrikkelOppslagFeiletException |
-| V0065 | UgyldigMatrikkelsvarException |
-| V0066 | MatrikkelAutentiseringFeiletException |
 | V0067 | FtbidDublettException (dublett) |
 | V0068 | FtbidDublettException (sannsynlig dublett) |
 | V0069 | UgyldigFtIdTypeException |
@@ -279,44 +275,13 @@ NIREGs særskilte SKO-rollekontroll videreføres ikke, siden denne servicen auto
 
 Scopene er konfigurerbare. Tilganger må være registrert i Maskinporten for konsumentene; denne løsningen oppretter ikke scopes eller klientregistreringer hos Digdir. Se [Digdirs dokumentasjon om token og validering](https://docs.digdir.no/docs/Maskinporten/maskinporten_protocol_token.html).
 
-## Kartverket og obligatoriske matrikkelenheter
+## Matrikkelopplysninger
 
-En ftbid må ha minst én matrikkelenhet. Oppretting uten matrikkel avvises, og den siste matrikkelenheten kan ikke slettes (`V0061`). Alle matrikkelenheter i en opprettingsforespørsel og alle nye tillegg valideres før noen data skrives. Hvis én enhet ikke kan godkjennes, avvises hele opprettingen eller tilknytningen.
+En ftbid må ha minst én matrikkelenhet. Opplysningene lagres og brukes til søk og dublettkontroll, uten eksterne oppslag eller kontroll av om eiendommen finnes. Det er ingen integrasjon mot Kartverkets Matrikkel og ingen innlogging eller konfigurasjon for et slikt oppslag.
 
-`IMatrikkelService` og `MatrikkelService` gjør den autoritative kontrollen. `IMatrikkelKlient` og `KartverketMatrikkelKlient` henter identifikatorer fra `MatrikkelenhetServiceWS/findMatrikkelenheter` med SOAP 1.1. Oppsettet følger Niregs `MatrikkelService`: HTTPS med Basic-autentisering, samme SOAP-navnerom og kontekst (`no_NO`, koordinatsystem 84, systemversjon `trunk` og gjeldende snapshot). Alle fem matrikkelfelter sendes som eksakte filtre; feste- og seksjonsnummer sendes også når de er 0. Ingen adresser, eiere eller personopplysninger hentes ved denne valideringen.
+Lokal inndatavalidering beholdes: kommunenummer må ha fire sifre, matrikkelnummer må være ikke-negative, og nye enheter krever en gyldig kommune i prosjektets kommuneregister. Oppretting uten matrikkel avvises, og den siste matrikkelenheten kan ikke slettes (`V0061`). Sletting av historiske enheter krever ikke at kommunen fortsatt er gyldig.
 
-Standardendepunktet er `https://nd.matrikkel.no/matrikkelapi/wsapi/v1/`, som i Nireg. Det kan overstyres gjennom `Matrikkel:Basisadresse`. Bruk en Kartverket-konto med lesetilgang til dette endepunktet. Brukernavn og passord finnes ikke i prosjektets innstillingsfiler eller Docker-image.
-
-For Compose: kopier `.env.eksempel` til `.env` og fyll inn samme Kartverket-innlogging som i Nireg:
-
-```text
-MATRIKKEL_BRUKERNAVN=<Kartverket-brukernavn>
-MATRIKKEL_PASSORD=<Kartverket-passord>
-```
-
-Start API-containeren på nytt etter at `.env` er endret:
-
-```sh
-docker compose up -d --force-recreate api
-```
-
-Ved direkte .NET-kjøring eller utrulling brukes `Matrikkel__Brukernavn` og `Matrikkel__Passord`. Disse tilsvarer `StatkartMatrikkel:UserName` og `StatkartMatrikkel:Password` i Nireg. `.env` leses av Compose, ikke automatisk av `dotnet run`. Tidsgrensen styres med `Matrikkel__TidsgrenseSekunder` (standard 15, tillatt 1–120).
-
-Valideringen gjelder i **alle miljøer, også Local**. Den lokale forenklingen av Maskinporten-token påvirker ikke autentisering eller validering mot Kartverket. Det finnes ingen innstilling for å hoppe over Matrikkel-validering.
-
-| Situasjon | HTTP-status | Regelkode |
-| --- | --- | --- |
-| Gyldig søkeresultat uten treff | 400 | V0063 |
-| Nettverksfeil, tidsavbrudd, HTTP-feil eller SOAP-fault | 503 | V0064 |
-| Ugyldig eller uventet SOAP-svar | 502 | V0065 |
-| Kartverket avviser Basic-innlogging (401/403) | 503 | V0066 |
-| Manglende brukernavn/passord eller ugyldig konfigurasjon | 500 | V0059 |
-
-Ved feil knyttes ingen nye matrikkelopplysninger til prosjektet. API-et kan fortsatt starte og tilby oppslag, helse og adresseendringer når Kartverket-innlogging mangler, men matrikkeltillegg og prosjektoppretting avvises. Innlogging, SOAP-feildetaljer og andre interne detaljer sendes ikke til API-klienten. Kartverket-kall har tidsgrense, bruker kansellering og følger ikke HTTP-omdirigeringer med Basic-innlogging.
-
-Historiske v1-data og syntetiske verdier fra den tidligere importen er ikke automatisk revalidert eller endret. V1-importskriptet er et separat migreringsverktøy og utfører ikke Kartverket-oppslag. Det skal ikke brukes som alternativ til de validerte API-endepunktene for nye matrikkeltilknytninger. Sletting av historiske matrikler krever fortsatt ikke nytt oppslag, så feil eller utgåtte opplysninger kan ryddes opp.
-
-Testene bruker en uttrykkelig testklient for syntetiske matrikler. SOAP-klienten testes med kontrollerte HTTP-svar, og integrasjonstestene verifiserer at tomme treff og oppslagsfeil ikke skriver til PostgreSQL. Et ekte oppslag krever konfigurert Kartverket-innlogging.
+Regelkodene V0063–V0066 for den fjernede integrasjonen er utgått og gjenbrukes ikke.
 
 ## Referansedata
 
@@ -425,6 +390,14 @@ dotnet ef migrations add <NorskMigrasjonsnavn> --project src/Ftpb.Ftbid.Infrastr
 Se [Npgsqls dokumentasjon for EF Core 10](https://www.npgsql.org/efcore/release-notes/10.0.html) og [ASP.NET Cores dokumentasjon for ratebegrensning](https://learn.microsoft.com/en-us/aspnet/core/performance/rate-limit?view=aspnetcore-10.0).
 
 ## Tester
+
+Kjør bare enhetstester, uten Docker eller database:
+
+```sh
+dotnet test ftpb-ftbid-api.sln --filter 'FullyQualifiedName~Ftpb.Ftbid.Tests.Enhet'
+```
+
+Hele testsuiten inkluderer HTTP-integrasjonstester med PostgreSQL:
 
 ```sh
 docker compose up -d --wait postgres

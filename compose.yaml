@@ -15,8 +15,6 @@ services:
       ASPNETCORE_HTTP_PORTS: 8080
       ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=ftbid;Username=ftbid;Password=ftbid_lokal"
       Maskinporten__Aktivert: "true"
-      Matrikkel__Brukernavn: "${MATRIKKEL_BRUKERNAVN:-}"
-      Matrikkel__Passord: "${MATRIKKEL_PASSORD:-}"
     volumes:
       - ./data/referansedata.eksempel.json:/data/referansedata.eksempel.json:ro
     depends_on:

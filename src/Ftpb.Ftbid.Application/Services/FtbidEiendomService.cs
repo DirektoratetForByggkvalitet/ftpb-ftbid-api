@@ -7,7 +7,7 @@ using static Ftpb.Ftbid.Application.Validering.FtbidValidering;
 namespace Ftpb.Ftbid.Application.Services;
 
 /// <summary>Validerer adresse- og matrikkelendringer uten å endre prosjektets identifikator.</summary>
-public sealed class FtbidEiendomService(IFtbidEiendomslager lager, IKommuneregister kommuneregister, IMatrikkelService matrikkelservice,
+public sealed class FtbidEiendomService(IFtbidEiendomslager lager, IKommuneregister kommuneregister,
     FtbidInnstillinger innstillinger) : IFtbidEiendomService
 {
     /// <inheritdoc />
@@ -22,7 +22,7 @@ public sealed class FtbidEiendomService(IFtbidEiendomslager lager, IKommuneregis
     public async Task LeggTilMatrikkelAsync(string ftbid, Matrikkeldata matrikkel, CancellationToken avbrudd = default)
     {
         var identifikator = NormaliserFtbid(ftbid, innstillinger);
-        var normalisert = await MatrikkelValidering.ValiderNyAsync(matrikkel, kommuneregister, matrikkelservice, avbrudd);
+        var normalisert = await MatrikkelValidering.ValiderNyAsync(matrikkel, kommuneregister, avbrudd);
         await lager.LeggTilMatrikkelAsync(identifikator, normalisert, avbrudd);
     }
 

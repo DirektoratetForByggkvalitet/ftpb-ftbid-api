@@ -1,6 +1,5 @@
 using Ftpb.Ftbid.Application.Kontrakter;
 using Ftpb.Ftbid.Application.Lagring;
-using Ftpb.Ftbid.Application.Services;
 using Ftpb.Ftbid.Domain.Feil.Unntak;
 
 namespace Ftpb.Ftbid.Application.Validering;
@@ -22,12 +21,11 @@ internal static class MatrikkelValidering
     }
 
     internal static async Task<Matrikkeldata> ValiderNyAsync(Matrikkeldata matrikkel,
-        IKommuneregister kommuneregister, IMatrikkelService matrikkelservice, CancellationToken avbrudd)
+        IKommuneregister kommuneregister, CancellationToken avbrudd)
     {
         var normalisert = Normaliser(matrikkel);
         if (!await kommuneregister.ErKommuneGyldigAsync(normalisert.Kommunenummer, DateTimeOffset.UtcNow, avbrudd))
             throw new UgyldigKommunenummerException(normalisert.Kommunenummer);
-        await matrikkelservice.ValiderAsync(normalisert, avbrudd);
         return normalisert;
     }
 }

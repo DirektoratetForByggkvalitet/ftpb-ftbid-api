@@ -1,6 +1,4 @@
 # Kjør med miljøet Local (standardprofilen i launchSettings.json).
-# Kartverket-innlogging må være satt; Matrikkel-validering gjelder også i Local.
-# Matrikkelnumrene nedenfor er eksempler og må erstattes med reelle enheter med treff hos Kartverket.
 # Syntetisk JWT med utløpt levetid og ugyldig signatur, kun til lokale eksempler.
 # Et ekte Maskinporten-token kan limes inn i token-variabelen.
 # Local krever kun en ikke-tom Bearer-verdi og validerer ikke JWT eller scopes.

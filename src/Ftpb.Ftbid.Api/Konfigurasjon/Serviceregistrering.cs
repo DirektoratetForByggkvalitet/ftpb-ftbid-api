@@ -1,5 +1,3 @@
-using Ftpb.Ftbid.Application.Matrikkel;
-using Ftpb.Ftbid.Infrastructure.Integrasjoner.Matrikkel;
 using Ftpb.Ftbid.Api.Autentisering;
 using Ftpb.Ftbid.Application.Konfigurasjon;
 using Ftpb.Ftbid.Application.Lagring;
@@ -25,16 +23,6 @@ public static class Serviceregistrering
         _ = EanGenerator.Lag(ftbidInnstillinger.Gs1Prefiks, 1);
         var maskinporten = konfigurasjon.GetSection("Maskinporten").Get<MaskinportenInnstillinger>() ?? new();
         services.LeggTilMaskinporten(maskinporten, miljo);
-        var matrikkel = konfigurasjon.GetSection("Matrikkel").Get<MatrikkelInnstillinger>() ?? new();
-        services.AddSingleton(matrikkel);
-        services.AddHttpClient<IMatrikkelKlient, KartverketMatrikkelKlient>(klient =>
-        {
-            if (matrikkel.TidsgrenseSekunder is < 1 or > 120)
-                throw new KonfigurasjonManglerException("Matrikkel:TidsgrenseSekunder må være mellom 1 og 120");
-            klient.Timeout = TimeSpan.FromSeconds(matrikkel.TidsgrenseSekunder);
-            klient.MaxResponseContentBufferSize = 30_720_000;
-        }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
-        services.AddScoped<IMatrikkelService, MatrikkelService>();
         services.AddSingleton(ftbidInnstillinger);
         var brukEntraId = konfigurasjon.GetValue<bool>("Database:BrukEntraId");
         services.AddDbContext<FtbidDbContext>(valg => PostgresOppsett.Konfigurer(valg, tilkobling, brukEntraId));

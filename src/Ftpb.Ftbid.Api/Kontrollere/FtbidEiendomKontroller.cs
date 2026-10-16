@@ -16,8 +16,6 @@ namespace Ftpb.Ftbid.Api.Kontrollere;
 [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized, "application/problem+json")]
 [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden, "application/problem+json")]
 [ProducesResponseType<ProblemDetails>(StatusCodes.Status500InternalServerError, "application/problem+json")]
-[ProducesResponseType<ProblemDetails>(StatusCodes.Status502BadGateway, "application/problem+json")]
-[ProducesResponseType<ProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json")]
 public sealed class FtbidEiendomKontroller(IFtbidEiendomService service) : ControllerBase
 {
     /// <summary>Legger til en adresse, eller beholder den hvis den allerede finnes.</summary>
