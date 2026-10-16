@@ -21,13 +21,13 @@ public sealed class FtbidApiTester(PostgresApiOppsett oppsett)
 {
     private static OpprettFtbid NyttProsjekt(string? navn = null) => new()
     {
-        Kommunenummer = "0301", Gaardsnummer = 10, Bruksnummer = 1,
         Prosjektnavn = navn ?? "Prosjekt " + Guid.NewGuid().ToString("N"), System = "Testsystem",
-        Adresse = "Karl Johans gate 1", Adresser = ["Storgata 2"],
-        Matrikkelopplysninger = [new("5001", 20, 2, 3, 4)]
+        Eiendom = [new() { Eiendomsidentifikasjon = new("0301", 10, 1),
+            Adresse = [new("Karl Johans gate 1"), new("Storgata 2")] },
+            new() { Eiendomsidentifikasjon = new("5001", 20, 2, 3, 4) }]
     };
 
-    /// <summary>Bevarer eldre enkeltfelter og returnerer flere adresser og matrikkelenheter.</summary>
+    /// <summary>Returnerer eiendommer med identifikasjon og strukturerte adresser.</summary>
     [Fact]
     public async Task OpprettingOgOppslagBevarerModellen()
     {
@@ -41,9 +41,9 @@ public sealed class FtbidApiTester(PostgresApiOppsett oppsett)
         var resultater = await klient.GetFromJsonAsync<List<FtbidResultat>>("/api/ftbid/" + ftbid);
         var resultat = Assert.Single(resultater!);
         Assert.Equal(foresporsel.Prosjektnavn, resultat.Prosjektnavn);
-        Assert.Equal("0301", resultat.Kommunenummer);
-        Assert.Equal(2, resultat.Adresser.Count);
-        Assert.Equal(2, resultat.Matrikkelopplysninger.Count);
+        Assert.Equal("0301", resultat.Eiendom[0].Eiendomsidentifikasjon.Kommunenummer);
+        Assert.Equal(2, resultat.Eiendom[0].Adresse.Count);
+        Assert.Equal(2, resultat.Eiendom.Count);
         var kort = await klient.GetFromJsonAsync<List<FtbidResultat>>("/api/ftbid/" + ftbid[^8..]);
         Assert.Equal(ftbid, Assert.Single(kort!).Ftbid);
         var json = await klient.GetStringAsync("/api/ftbid/" + ftbid);
@@ -57,13 +57,13 @@ public sealed class FtbidApiTester(PostgresApiOppsett oppsett)
     {
         using var klient = oppsett.Klient();
         var foresporsel = new OpprettFtbid { Prosjektnavn = Guid.NewGuid().ToString(), System = "Test",
-            Adresser = ["Adresse 1", "Adresse 2"], Matrikkelopplysninger = [new("0301", 1, 2), new("5001", 3, 4)] };
+            Eiendom = [new() { Eiendomsidentifikasjon = new("0301", 1, 2), Adresse = [new("Adresse 1"), new("Adresse 2")] }, new() { Eiendomsidentifikasjon = new("5001", 3, 4) }] };
         var svar = await klient.PostAsJsonAsync("/api/ftbid", foresporsel);
         Assert.Equal(HttpStatusCode.OK, svar.StatusCode);
         var ftbid = await svar.Content.ReadFromJsonAsync<string>();
         var resultat = Assert.Single((await klient.GetFromJsonAsync<List<FtbidResultat>>("/api/ftbid/" + ftbid))!);
-        Assert.Equal("Adresse 1", resultat.Adresse);
-        Assert.Equal(2, resultat.Matrikkelopplysninger.Count);
+        Assert.Equal("Adresse 1", resultat.Eiendom[0].Adresse[0].Adresselinje1);
+        Assert.Equal(2, resultat.Eiendom.Count);
     }
 
     /// <summary>Kun én samtidig oppretting lykkes; dubletter returnerer 409 uten å endre prosjektet.</summary>
@@ -96,7 +96,7 @@ public sealed class FtbidApiTester(PostgresApiOppsett oppsett)
         foresporsel.KommunaltSaksnummer = Guid.NewGuid().ToString();
         foresporsel.Tiltakshaver = "Ola Nordmann";
         foresporsel.Organisasjonsnummer = "123456789";
-        foresporsel.Bygningsnummer = Guid.NewGuid().ToString();
+        foresporsel.Eiendom[0].Bygningsnummer = Guid.NewGuid().ToString();
         foresporsel.Tiltakstype = "Tilbygg";
         var svar = await klient.PostAsJsonAsync("/api/ftbid", foresporsel);
         Assert.Equal(HttpStatusCode.OK, svar.StatusCode);
@@ -106,7 +106,7 @@ public sealed class FtbidApiTester(PostgresApiOppsett oppsett)
         Assert.Equal(foresporsel.KommunaltSaksnummer, resultat.KommunaltSaksnummer);
         Assert.Equal(foresporsel.Tiltakshaver, resultat.Tiltakshaver);
         Assert.Equal(foresporsel.Organisasjonsnummer, resultat.Organisasjonsnummer);
-        Assert.Equal(foresporsel.Bygningsnummer, resultat.Bygningsnummer);
+        Assert.Equal(foresporsel.Eiendom[0].Bygningsnummer, resultat.Eiendom[0].Bygningsnummer);
         Assert.Equal(foresporsel.Tiltakstype, resultat.Tiltakstype);
         foresporsel.EksternProsjektreferanse = null;
         foresporsel.KommunaltSaksnummer = null;
@@ -127,8 +127,7 @@ public sealed class FtbidApiTester(PostgresApiOppsett oppsett)
         Assert.Equal(HttpStatusCode.OK, opprettet.StatusCode);
         var ftbid = (await opprettet.Content.ReadFromJsonAsync<string>())!;
         foresporsel.Prosjektnavn = Guid.NewGuid().ToString();
-        foresporsel.Gaardsnummer = 999;
-        foresporsel.Matrikkelopplysninger = [];
+        foresporsel.Eiendom = [new() { Eiendomsidentifikasjon = new("0301", 999, 1) }];
         var dublett = await klient.PostAsJsonAsync("/api/ftbid", foresporsel);
         await KontrollerDublettAsync(dublett, ftbid, "V0067", false);
         var hentet = await klient.GetFromJsonAsync<List<FtbidResultat>>(dublett.Headers.Location);
@@ -165,12 +164,12 @@ public sealed class FtbidApiTester(PostgresApiOppsett oppsett)
     {
         using var klient = oppsett.Klient();
         var foresporsel = NyttProsjekt();
-        foresporsel.Adresser = ["Unik " + Guid.NewGuid().ToString("N")];
+        foresporsel.Eiendom[0].Adresse = [new("Unik " + Guid.NewGuid().ToString("N"))];
         var svar = await klient.PostAsJsonAsync("/api/ftbid", foresporsel);
         var ftbid = await svar.Content.ReadFromJsonAsync<string>();
         var sekundar = await klient.GetFromJsonAsync<List<FtbidResultat>>("/api/ftbid/sok?kommunenummer=5001&gaardsnummer=20&prosjektnavn=" + Uri.EscapeDataString(foresporsel.Prosjektnavn!));
         Assert.Equal(ftbid, Assert.Single(sekundar!).Ftbid);
-        var adresse = await klient.GetFromJsonAsync<List<FtbidResultat>>("/api/ftbid/sok?adresse=" + Uri.EscapeDataString(foresporsel.Adresser[0].ToUpperInvariant()));
+        var adresse = await klient.GetFromJsonAsync<List<FtbidResultat>>("/api/ftbid/sok?adresse=" + Uri.EscapeDataString(foresporsel.Eiendom[0].Adresse[0].Adresselinje1!.ToUpperInvariant()));
         Assert.Equal(ftbid, Assert.Single(adresse!).Ftbid);
         var blandet = await klient.GetFromJsonAsync<List<FtbidResultat>>("/api/ftbid/sok?kommunenummer=0301&gaardsnummer=20&prosjektnavn=" + Uri.EscapeDataString(foresporsel.Prosjektnavn!));
         Assert.Empty(blandet!);
@@ -216,12 +215,12 @@ public sealed class FtbidApiTester(PostgresApiOppsett oppsett)
         Assert.Equal(HttpStatusCode.BadRequest, (await klient.PostAsJsonAsync("/api/ftbid", new { })).StatusCode);
         foreach (var kommune in new[] { "9999", "9998", "abc" })
         {
-            var foresporsel = NyttProsjekt(); foresporsel.Kommunenummer = kommune;
+            var foresporsel = NyttProsjekt(); foresporsel.Eiendom[0].Eiendomsidentifikasjon = foresporsel.Eiendom[0].Eiendomsidentifikasjon! with { Kommunenummer = kommune };
             var svar = await klient.PostAsJsonAsync("/api/ftbid", foresporsel);
             Assert.Equal(HttpStatusCode.BadRequest, svar.StatusCode);
             Assert.Contains("kommunenummer", (await svar.Content.ReadAsStringAsync()).ToLowerInvariant());
         }
-        var ugyldig = NyttProsjekt(); ugyldig.Bruksnummer = -1;
+        var ugyldig = NyttProsjekt(); ugyldig.Eiendom[0].Eiendomsidentifikasjon = ugyldig.Eiendom[0].Eiendomsidentifikasjon! with { Bruksnummer = -1 };
         Assert.Equal(HttpStatusCode.BadRequest, (await klient.PostAsJsonAsync("/api/ftbid", ugyldig)).StatusCode);
         using var innhold = new StringContent("null", System.Text.Encoding.UTF8, "application/json");
         Assert.Equal(HttpStatusCode.BadRequest, (await klient.PostAsync("/api/ftbid", innhold)).StatusCode);
@@ -286,13 +285,9 @@ public sealed class FtbidApiTester(PostgresApiOppsett oppsett)
         using var dokument = JsonDocument.Parse(await klient.GetStringAsync("/openapi/v1.json"));
         var stier = dokument.RootElement.GetProperty("paths");
         Assert.Equal(6, stier.EnumerateObject().Count());
-        foreach (var navn in new[] { "adresser", "matrikkelopplysninger" })
-        {
-            var operasjoner = stier.GetProperty("/api/ftbid/{ftbid}/" + navn);
-            Assert.True(operasjoner.TryGetProperty("post", out _));
-            Assert.True(operasjoner.TryGetProperty("delete", out _));
-            Assert.True(operasjoner.GetProperty("post").GetProperty("responses").TryGetProperty("204", out _));
-        }
+        Assert.True(stier.GetProperty("/api/ftbid/{ftbid}/eiendom").TryGetProperty("post", out _));
+        Assert.True(stier.GetProperty("/api/ftbid/{ftbid}/eiendom/{eiendomId}").TryGetProperty("put", out _));
+        Assert.True(stier.GetProperty("/api/ftbid/{ftbid}/eiendom/{eiendomId}").TryGetProperty("delete", out _));
         Assert.True(stier.TryGetProperty("/api/ftbid/sok", out _));
         Assert.True(stier.TryGetProperty("/api/ftbid/tilknytt", out _));
         Assert.False(stier.TryGetProperty("/api/ftbid/search", out _));
@@ -364,7 +359,7 @@ public sealed class FtbidApiTester(PostgresApiOppsett oppsett)
     public async Task RegelbruddReturnererProblemDetailsMedKode()
     {
         using var klient = oppsett.Klient();
-        var kommune = NyttProsjekt(); kommune.Kommunenummer = "9999";
+        var kommune = NyttProsjekt(); kommune.Eiendom[0].Eiendomsidentifikasjon = kommune.Eiendom[0].Eiendomsidentifikasjon! with { Kommunenummer = "9999" };
         var svar = await klient.PostAsJsonAsync("/api/ftbid", kommune);
         await KontrollerProblemAsync(svar, 400, "V0034");
         await KontrollerProblemAsync(await klient.PostAsJsonAsync("/api/ftbid", new { }), 400, "V0042");

@@ -1,3 +1,4 @@
+using Ftpb.Ftbid.Domain.Prosjekter;
 using Ftpb.Ftbid.Application.Kontrakter;
 using Ftpb.Ftbid.Application.Lagring;
 using Ftpb.Ftbid.Domain.Feil.Unntak;
@@ -7,7 +8,7 @@ namespace Ftpb.Ftbid.Application.Validering;
 /// <summary>Felles format- og gyldighetskontroll av matrikkelenheter.</summary>
 internal static class MatrikkelValidering
 {
-    internal static Matrikkeldata Normaliser(Matrikkeldata? matrikkel)
+    internal static Eiendomsidentifikasjon Normaliser(Eiendomsidentifikasjon? matrikkel)
     {
         if (matrikkel is null || matrikkel.Kommunenummer is null)
             throw new UgyldigeMatrikkelopplysningerException();
@@ -20,7 +21,7 @@ internal static class MatrikkelValidering
         return matrikkel with { Kommunenummer = kommune };
     }
 
-    internal static async Task<Matrikkeldata> ValiderNyAsync(Matrikkeldata matrikkel,
+    internal static async Task<Eiendomsidentifikasjon> ValiderNyAsync(Eiendomsidentifikasjon matrikkel,
         IKommuneregister kommuneregister, CancellationToken avbrudd)
     {
         var normalisert = Normaliser(matrikkel);

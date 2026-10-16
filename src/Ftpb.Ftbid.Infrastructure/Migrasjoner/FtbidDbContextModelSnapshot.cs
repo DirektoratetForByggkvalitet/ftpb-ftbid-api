@@ -26,7 +26,7 @@ namespace Ftpb.Ftbid.Infrastructure.Migrasjoner
             modelBuilder.HasSequence("ftbid_sekvens")
                 .HasMax(9999999L);
 
-            modelBuilder.Entity("Ftpb.Ftbid.Domain.Prosjekter.Adresse", b =>
+            modelBuilder.Entity("Ftpb.Ftbid.Domain.Prosjekter.Eiendom", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -35,16 +35,25 @@ namespace Ftpb.Ftbid.Infrastructure.Migrasjoner
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
-                    b.Property<string>("Adressetekst")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
-                        .HasColumnName("adressetekst");
+                    b.Property<string>("Bolignummer")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("bolignummer");
+
+                    b.Property<string>("Bygningsnummer")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("bygningsnummer");
 
                     b.Property<string>("Ftbid")
                         .IsRequired()
                         .HasColumnType("character varying(18)")
                         .HasColumnName("ftbid");
+
+                    b.Property<string>("Kommunenavn")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("kommunenavn");
 
                     b.Property<int>("Rekkefolge")
                         .HasColumnType("integer")
@@ -55,7 +64,77 @@ namespace Ftpb.Ftbid.Infrastructure.Migrasjoner
                     b.HasIndex("Ftbid", "Rekkefolge")
                         .IsUnique();
 
-                    b.ToTable("adresse", (string)null);
+                    b.ToTable("eiendom", (string)null);
+                });
+
+            modelBuilder.Entity("Ftpb.Ftbid.Domain.Prosjekter.Eiendomsadresse", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Adresselinje1")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("adresselinje1");
+
+                    b.Property<string>("Adresselinje2")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("adresselinje2");
+
+                    b.Property<string>("Adresselinje3")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("adresselinje3");
+
+                    b.Property<string>("Bokstav")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("bokstav");
+
+                    b.Property<long>("EiendomId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("eiendom_id");
+
+                    b.Property<string>("Gatenavn")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("gatenavn");
+
+                    b.Property<string>("Husnr")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("husnr");
+
+                    b.Property<string>("Landkode")
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("landkode");
+
+                    b.Property<string>("Postnr")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("postnr");
+
+                    b.Property<string>("Poststed")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("poststed");
+
+                    b.Property<int>("Rekkefolge")
+                        .HasColumnType("integer")
+                        .HasColumnName("rekkefolge");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EiendomId", "Rekkefolge")
+                        .IsUnique();
+
+                    b.ToTable("eiendomsadresse", (string)null);
                 });
 
             modelBuilder.Entity("Ftpb.Ftbid.Domain.Prosjekter.Ftbid", b =>
@@ -65,53 +144,20 @@ namespace Ftpb.Ftbid.Infrastructure.Migrasjoner
                         .HasColumnType("character varying(18)")
                         .HasColumnName("ean");
 
-                    b.Property<string>("Adresse")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
-                        .HasColumnName("adresse");
-
                     b.Property<string>("AnsvarligSokerOrganisasjonsnummer")
                         .HasMaxLength(9)
                         .HasColumnType("character varying(9)")
                         .HasColumnName("ansvarlig_soker_organisasjonsnummer");
-
-                    b.Property<string>("Bruksenhetsnummer")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("bruksenhetsnummer");
-
-                    b.Property<int>("Bruksnummer")
-                        .HasColumnType("integer")
-                        .HasColumnName("bruksnummer");
-
-                    b.Property<string>("Bygningsnummer")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("bygningsnummer");
 
                     b.Property<string>("EksternProsjektreferanse")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
                         .HasColumnName("ekstern_prosjektreferanse");
 
-                    b.Property<int>("Festenummer")
-                        .HasColumnType("integer")
-                        .HasColumnName("festenummer");
-
-                    b.Property<int>("Gaardsnummer")
-                        .HasColumnType("integer")
-                        .HasColumnName("gaardsnummer");
-
                     b.Property<string>("KommunaltSaksnummer")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
                         .HasColumnName("kommunalt_saksnummer");
-
-                    b.Property<string>("Kommunenummer")
-                        .IsRequired()
-                        .HasMaxLength(4)
-                        .HasColumnType("character varying(4)")
-                        .HasColumnName("kommunenummer");
 
                     b.Property<string>("NormalisertProsjektnavn")
                         .IsRequired()
@@ -135,10 +181,6 @@ namespace Ftpb.Ftbid.Infrastructure.Migrasjoner
                         .HasColumnType("character varying(200)")
                         .HasColumnName("prosjektnummer");
 
-                    b.Property<int>("Seksjonsnummer")
-                        .HasColumnType("integer")
-                        .HasColumnName("seksjonsnummer");
-
                     b.Property<string>("System")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -161,12 +203,6 @@ namespace Ftpb.Ftbid.Infrastructure.Migrasjoner
 
                     b.HasKey("Ean");
 
-                    b.HasIndex("Kommunenummer");
-
-                    b.HasIndex("Kommunenummer", "Gaardsnummer", "Bruksnummer", "Festenummer", "Seksjonsnummer", "NormalisertProsjektnavn")
-                        .IsUnique()
-                        .HasDatabaseName("IX_ftbid_prosjektidentitet");
-
                     b.ToTable("ftbid", (string)null);
                 });
 
@@ -188,56 +224,6 @@ namespace Ftpb.Ftbid.Infrastructure.Migrasjoner
                     b.HasIndex("Ftbid");
 
                     b.ToTable("identifikasjonsmetadata", (string)null);
-                });
-
-            modelBuilder.Entity("Ftpb.Ftbid.Domain.Prosjekter.Matrikkelopplysning", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<int>("Bruksnummer")
-                        .HasColumnType("integer")
-                        .HasColumnName("bruksnummer");
-
-                    b.Property<int>("Festenummer")
-                        .HasColumnType("integer")
-                        .HasColumnName("festenummer");
-
-                    b.Property<string>("Ftbid")
-                        .IsRequired()
-                        .HasColumnType("character varying(18)")
-                        .HasColumnName("ftbid");
-
-                    b.Property<int>("Gaardsnummer")
-                        .HasColumnType("integer")
-                        .HasColumnName("gaardsnummer");
-
-                    b.Property<string>("Kommunenummer")
-                        .IsRequired()
-                        .HasMaxLength(4)
-                        .HasColumnType("character varying(4)")
-                        .HasColumnName("kommunenummer");
-
-                    b.Property<int>("Rekkefolge")
-                        .HasColumnType("integer")
-                        .HasColumnName("rekkefolge");
-
-                    b.Property<int>("Seksjonsnummer")
-                        .HasColumnType("integer")
-                        .HasColumnName("seksjonsnummer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Ftbid", "Rekkefolge")
-                        .IsUnique();
-
-                    b.HasIndex("Kommunenummer", "Gaardsnummer", "Bruksnummer");
-
-                    b.ToTable("matrikkelopplysning", (string)null);
                 });
 
             modelBuilder.Entity("Ftpb.Ftbid.Domain.Referansedata.Kommune", b =>
@@ -287,11 +273,61 @@ namespace Ftpb.Ftbid.Infrastructure.Migrasjoner
                     b.ToTable("skjemametadata", (string)null);
                 });
 
-            modelBuilder.Entity("Ftpb.Ftbid.Domain.Prosjekter.Adresse", b =>
+            modelBuilder.Entity("Ftpb.Ftbid.Domain.Prosjekter.Eiendom", b =>
                 {
                     b.HasOne("Ftpb.Ftbid.Domain.Prosjekter.Ftbid", null)
-                        .WithMany("Adresser")
+                        .WithMany("Eiendom")
                         .HasForeignKey("Ftbid")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.OwnsOne("Ftpb.Ftbid.Domain.Prosjekter.Eiendomsidentifikasjon", "Eiendomsidentifikasjon", b1 =>
+                        {
+                            b1.Property<long>("EiendomId")
+                                .HasColumnType("bigint")
+                                .HasColumnName("id");
+
+                            b1.Property<int>("Bruksnummer")
+                                .HasColumnType("integer")
+                                .HasColumnName("bruksnummer");
+
+                            b1.Property<int>("Festenummer")
+                                .HasColumnType("integer")
+                                .HasColumnName("festenummer");
+
+                            b1.Property<int>("Gaardsnummer")
+                                .HasColumnType("integer")
+                                .HasColumnName("gaardsnummer");
+
+                            b1.Property<string>("Kommunenummer")
+                                .IsRequired()
+                                .HasMaxLength(4)
+                                .HasColumnType("character varying(4)")
+                                .HasColumnName("kommunenummer");
+
+                            b1.Property<int>("Seksjonsnummer")
+                                .HasColumnType("integer")
+                                .HasColumnName("seksjonsnummer");
+
+                            b1.HasKey("EiendomId");
+
+                            b1.HasIndex("Kommunenummer", "Gaardsnummer", "Bruksnummer");
+
+                            b1.ToTable("eiendom");
+
+                            b1.WithOwner()
+                                .HasForeignKey("EiendomId");
+                        });
+
+                    b.Navigation("Eiendomsidentifikasjon")
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Ftpb.Ftbid.Domain.Prosjekter.Eiendomsadresse", b =>
+                {
+                    b.HasOne("Ftpb.Ftbid.Domain.Prosjekter.Eiendom", null)
+                        .WithMany("Adresse")
+                        .HasForeignKey("EiendomId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -313,22 +349,16 @@ namespace Ftpb.Ftbid.Infrastructure.Migrasjoner
                     b.Navigation("Skjemametadata");
                 });
 
-            modelBuilder.Entity("Ftpb.Ftbid.Domain.Prosjekter.Matrikkelopplysning", b =>
+            modelBuilder.Entity("Ftpb.Ftbid.Domain.Prosjekter.Eiendom", b =>
                 {
-                    b.HasOne("Ftpb.Ftbid.Domain.Prosjekter.Ftbid", null)
-                        .WithMany("Matrikkelopplysninger")
-                        .HasForeignKey("Ftbid")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                    b.Navigation("Adresse");
                 });
 
             modelBuilder.Entity("Ftpb.Ftbid.Domain.Prosjekter.Ftbid", b =>
                 {
-                    b.Navigation("Adresser");
+                    b.Navigation("Eiendom");
 
                     b.Navigation("Identifikasjonsmetadata");
-
-                    b.Navigation("Matrikkelopplysninger");
                 });
 #pragma warning restore 612, 618
         }

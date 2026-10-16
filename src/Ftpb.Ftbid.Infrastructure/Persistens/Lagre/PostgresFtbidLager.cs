@@ -20,10 +20,10 @@ public sealed class PostgresFtbidLager(FtbidDbContext database, IFtbidDublettSer
         await using var transaksjon = await database.Database.BeginTransactionAsync(avbrudd);
         // Transaksjonslåsen gjør oppslag og oppretting atomisk også på tvers av API-instanser.
         await database.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(7099999)", avbrudd);
-        var kommuner = prosjekt.Matrikkelopplysninger.Select(m => m.Kommunenummer).Distinct().ToArray();
+        var kommuner = prosjekt.Eiendom.Select(e => e.Eiendomsidentifikasjon.Kommunenummer).Distinct().ToArray();
         var kandidater = await database.Ftbider.AsNoTracking().AsSplitQuery()
-            .Include(f => f.Adresser).Include(f => f.Matrikkelopplysninger)
-            .Where(f => kommuner.Contains(f.Kommunenummer) || f.Matrikkelopplysninger.Any(m => kommuner.Contains(m.Kommunenummer)))
+            .Include(f => f.Eiendom).ThenInclude(e => e.Adresse)
+            .Where(f => f.Eiendom.Any(e => kommuner.Contains(e.Eiendomsidentifikasjon.Kommunenummer)))
             .ToListAsync(avbrudd);
         var treff = dublettService.Finn(prosjekt, kandidater);
         if (treff is not null)
@@ -54,27 +54,36 @@ public sealed class PostgresFtbidLager(FtbidDbContext database, IFtbidDublettSer
         await MedMetadata().Where(f => f.Ean == ftbid).ToListAsync(avbrudd);
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<FtbidEntitet>> SokAsync(FtbidSok filter, CancellationToken avbrudd)
+    public async Task<IReadOnlyList<FtbidEntitet>> SokAsync(FtbidSok filter, CancellationToken avbrudd) =>
+        await ByggSok(filter).ToListAsync(avbrudd);
+
+    internal IQueryable<FtbidEntitet> ByggSok(FtbidSok filter)
     {
         var sporring = MedMetadata();
         var kommune = filter.Kommunenummer?.Trim();
+        var adresse = filter.Adresse?.Trim().ToLowerInvariant();
+        var bygning = filter.Bygningsnummer?.Trim().ToLowerInvariant();
+        var bolig = filter.Bolignummer?.Trim().ToLowerInvariant();
+        // Alle eiendomsfiltre gjelder samme eiendom, og adressetekst gjelder én adresse på denne.
         if (!string.IsNullOrWhiteSpace(kommune) || filter.Gaardsnummer.HasValue || filter.Bruksnummer.HasValue ||
-            filter.Festenummer.HasValue || filter.Seksjonsnummer.HasValue)
-            sporring = sporring.Where(f => f.Matrikkelopplysninger.Any(m =>
-                (string.IsNullOrEmpty(kommune) || m.Kommunenummer == kommune) &&
-                (!filter.Gaardsnummer.HasValue || m.Gaardsnummer == filter.Gaardsnummer) &&
-                (!filter.Bruksnummer.HasValue || m.Bruksnummer == filter.Bruksnummer) &&
-                (!filter.Festenummer.HasValue || m.Festenummer == filter.Festenummer) &&
-                (!filter.Seksjonsnummer.HasValue || m.Seksjonsnummer == filter.Seksjonsnummer)));
+            filter.Festenummer.HasValue || filter.Seksjonsnummer.HasValue || !string.IsNullOrWhiteSpace(adresse) ||
+            !string.IsNullOrWhiteSpace(bygning) || !string.IsNullOrWhiteSpace(bolig))
+            sporring = sporring.Where(f => f.Eiendom.Any(e =>
+                (string.IsNullOrEmpty(kommune) || e.Eiendomsidentifikasjon.Kommunenummer == kommune) &&
+                (!filter.Gaardsnummer.HasValue || e.Eiendomsidentifikasjon.Gaardsnummer == filter.Gaardsnummer) &&
+                (!filter.Bruksnummer.HasValue || e.Eiendomsidentifikasjon.Bruksnummer == filter.Bruksnummer) &&
+                (!filter.Festenummer.HasValue || e.Eiendomsidentifikasjon.Festenummer == filter.Festenummer) &&
+                (!filter.Seksjonsnummer.HasValue || e.Eiendomsidentifikasjon.Seksjonsnummer == filter.Seksjonsnummer) &&
+                (string.IsNullOrEmpty(bygning) || (e.Bygningsnummer != null && e.Bygningsnummer.ToLower() == bygning)) &&
+                (string.IsNullOrEmpty(bolig) || (e.Bolignummer != null && e.Bolignummer.ToLower() == bolig)) &&
+                (string.IsNullOrEmpty(adresse) || e.Adresse.Any(a =>
+                    ((a.Adresselinje1 ?? "") + " " + (a.Adresselinje2 ?? "") + " " + (a.Adresselinje3 ?? "") + " " +
+                     (a.Postnr ?? "") + " " + (a.Poststed ?? "") + " " + (a.Landkode ?? "") + " " +
+                     (a.Gatenavn ?? "") + " " + (a.Husnr ?? "") + " " + (a.Bokstav ?? "")).ToLower().Contains(adresse)))));
         if (!string.IsNullOrWhiteSpace(filter.Prosjektnavn))
         {
             var navn = filter.Prosjektnavn.Trim().ToLowerInvariant();
             sporring = sporring.Where(f => f.NormalisertProsjektnavn.Contains(navn));
-        }
-        if (!string.IsNullOrWhiteSpace(filter.Adresse))
-        {
-            var adresse = filter.Adresse.Trim().ToLowerInvariant();
-            sporring = sporring.Where(f => f.Adresser.Any(a => a.Adressetekst.ToLower().Contains(adresse)));
         }
         if (!string.IsNullOrWhiteSpace(filter.Ftbid))
             sporring = sporring.Where(f => f.Ean == filter.Ftbid);
@@ -106,20 +115,10 @@ public sealed class PostgresFtbidLager(FtbidDbContext database, IFtbidDublettSer
             var verdi = filter.AnsvarligSokerOrganisasjonsnummer.Trim().ToLowerInvariant();
             sporring = sporring.Where(f => f.AnsvarligSokerOrganisasjonsnummer != null && f.AnsvarligSokerOrganisasjonsnummer.ToLower() == verdi);
         }
-        if (!string.IsNullOrWhiteSpace(filter.Bygningsnummer))
-        {
-            var verdi = filter.Bygningsnummer.Trim().ToLowerInvariant();
-            sporring = sporring.Where(f => f.Bygningsnummer != null && f.Bygningsnummer.ToLower() == verdi);
-        }
-        if (!string.IsNullOrWhiteSpace(filter.Bruksenhetsnummer))
-        {
-            var verdi = filter.Bruksenhetsnummer.Trim().ToLowerInvariant();
-            sporring = sporring.Where(f => f.Bruksenhetsnummer != null && f.Bruksenhetsnummer.ToLower() == verdi);
-        }
-        return await sporring.OrderBy(f => f.Ean).ToListAsync(avbrudd);
+        return sporring.OrderBy(f => f.Ean);
     }
 
     private IQueryable<FtbidEntitet> MedMetadata() => database.Ftbider.AsNoTracking().AsSplitQuery()
-        .Include(f => f.Adresser).Include(f => f.Matrikkelopplysninger)
+        .Include(f => f.Eiendom).ThenInclude(e => e.Adresse)
         .Include(f => f.Identifikasjonsmetadata).ThenInclude(m => m.Skjemametadata);
 }

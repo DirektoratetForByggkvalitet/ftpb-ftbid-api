@@ -48,7 +48,7 @@ Compose oppretter databasen `ftbid` på `localhost:55432`, med brukernavn `ftbid
 | Prosjekt | Ansvar |
 | --- | --- |
 | Api | HTTP-kontrakter, Maskinporten, scopes, ratebegrensning, helse og Swagger |
-| Domain | Ftbid, adresser, matrikkelopplysninger, identifikasjonsmetadata, EAN og regelunntak |
+| Domain | Ftbid, eiendommer med identifikasjon og strukturerte adresser, identifikasjonsmetadata, EAN og regelunntak |
 | Application | Grensesnitt, validering, forretningsregler og resultatmodeller |
 | Infrastructure | PostgreSQL, EF Core, migrasjoner og referansedataimport |
 | Tests | xUnit-enhetstester og HTTP-integrasjonstester med ekte PostgreSQL |
@@ -81,45 +81,67 @@ Felles tekstvalidering og normalisering er interne hjelpefunksjoner i Applicatio
 | POST | `/api/ftbid/tilknytt` | `dibk:bygg/ftbid.endre` | 204 |
 | GET | `/api/ftbid/sok` | `dibk:bygg/ftbid.les` | 200 med liste av prosjekter og metadata |
 | GET | `/api/ftbid/{ftbid}` | `dibk:bygg/ftbid.les` | 200 med liste, tom ved ukjent ftbid |
-| POST | `/api/ftbid/{ftbid}/adresser` | `dibk:bygg/ftbid.endre` | 204 |
-| DELETE | `/api/ftbid/{ftbid}/adresser?adresse=...` | `dibk:bygg/ftbid.endre` | 204 |
-| POST | `/api/ftbid/{ftbid}/matrikkelopplysninger` | `dibk:bygg/ftbid.endre` | 204 |
-| DELETE | `/api/ftbid/{ftbid}/matrikkelopplysninger?kommunenummer=...&gaardsnummer=...&bruksnummer=...` | `dibk:bygg/ftbid.endre` | 204 |
+| POST | `/api/ftbid/{ftbid}/eiendom` | `dibk:bygg/ftbid.endre` | 204 |
+| PUT | `/api/ftbid/{ftbid}/eiendom/{eiendomId}` | `dibk:bygg/ftbid.endre` | 204 |
+| DELETE | `/api/ftbid/{ftbid}/eiendom/{eiendomId}` | `dibk:bygg/ftbid.endre` | 204 |
 
 API-ruter og JSON-feltnavn er på norsk. Tilknytning bruker `Ftbid` og `Arkivreferanse`, og svarene bruker `TilknyttedeSkjemaer` med `Arkivreferanse`, `Skjematype` og `Tiltakstyper`. JSON-inndata er ikke følsomme for store og små bokstaver. Dette er en bevisst endring fra adapterens engelske ruter og JSON-feltnavn; klienter må oppdateres til den nye kontrakten.
 
-### Oppretting med norske feltnavn og nye lister
+### Eiendomsmodell og oppretting
+
+En ftbid har `Eiendom` som en liste med **0 til 100 eiendommer**. Utelatt liste blir tom; `Eiendom: []` er gyldig. Hver eiendom inneholder ett `Eiendomsidentifikasjon`-objekt, en `Adresse`-liste med 0 til 100 adresseobjekter, og valgfrie `Bygningsnummer`, `Bolignummer` og `Kommunenavn`. Rekkefølgen bevares. Eiendomsopplysninger har ingen eksterne registeroppslag.
 
 ```json
 {
-  "Kommunenummer": "0301",
-  "Gaardsnummer": 10,
-  "Bruksnummer": 1,
-  "Festenummer": 0,
-  "Seksjonsnummer": 0,
-  "Adresse": "Karl Johans gate 1",
   "Prosjektnavn": "Utvidelse av bygget",
   "Prosjektnr": "P-1001",
   "System": "Søknadssystem",
-  "Adresser": ["Storgata 2"],
-  "Matrikkelopplysninger": [
-    { "Kommunenummer": "0301", "Gaardsnummer": 20, "Bruksnummer": 2, "Festenummer": 3, "Seksjonsnummer": 4 }
+  "Eiendom": [
+    {
+      "Eiendomsidentifikasjon": {
+        "Kommunenummer": "3901",
+        "Gaardsnummer": 124,
+        "Bruksnummer": 55,
+        "Festenummer": 2,
+        "Seksjonsnummer": 0
+      },
+      "Adresse": [
+        {
+          "Adresselinje1": "Admiralveien 2A",
+          "Adresselinje2": "Hyttefelt 1",
+          "Adresselinje3": null,
+          "Postnr": "3183",
+          "Poststed": "Horten",
+          "Landkode": "NO",
+          "Gatenavn": "Admiralveien",
+          "Husnr": "2",
+          "Bokstav": "A"
+        }
+      ],
+      "Bygningsnummer": "300827824",
+      "Bolignummer": "H0201",
+      "Kommunenavn": "Horten"
+    }
   ]
 }
 ```
 
-De eksisterende matrikkelfeltene er hovedmatrikkelenheten og legges først i listen. Enkeltadressen legges først i adresselisten. Du kan også bruke kun `Adresser` og `Matrikkelopplysninger`; første verdi blir da hovedverdien. Like verdier fjernes, og rekkefølgen beholdes. Maksimalt 100 adresser og 100 matrikkelopplysninger tillates. Kommuner må være registrert og gyldige på opprettingstidspunktet.
+Kommunen må finnes og være gyldig i prosjektets lokale kommuneregister ved oppretting eller endring. Eksempelet bruker Horten (`3901`); den lokale referansefilen inneholder kun Oslo (`0301`). Kommuneformat og ikke-negative matrikkelnummer kontrolleres lokalt. Feste- og seksjonsnummer er 0 når de utelates. En eiendom uten identifikasjon avvises. Adressefelter er valgfrie, men et adresseobjekt må inneholde minst én verdi; null-elementer tillates ikke. Postnummer, husnummer, bygningsnummer og bolignummer er tekst, slik at ledende nuller bevares.
 
-Oppretting støtter også de valgfrie feltene `EksternProsjektreferanse` (200 tegn), `KommunaltSaksnummer` (200), `Tiltakshaver` (500), `Organisasjonsnummer` (9), `Bygningsnummer` (50) og `Tiltakstype` (200). Feltene lagres og returneres ved oppslag og søk. `Prosjektnavn` brukes også som tiltaksnavn. Det eksisterende `Prosjektnr` beholdes som reserve for ekstern referanse når `EksternProsjektreferanse` mangler.
+`Adresselinje1`–`Adresselinje3` tillater 1000 tegn hver, `Postnr` 20, `Poststed` 200, `Landkode` 2, `Gatenavn` 500, `Husnr` 50 og `Bokstav` 20. Landkode normaliseres til store bokstaver. `Bygningsnummer` og `Bolignummer` tillater 50 tegn, `Kommunenavn` 200. Tekst trimmes og tom valgfritekst blir null.
+
+Dette erstatter de tidligere flate `Adresser`, `Matrikkelopplysninger`, adresse-, matrikkel-, bygningsnummer- og bruksenhetsfeltene på prosjektnivå. Klienter må bruke den nye kontrakten; gamle eller ukjente felt i oppretting, eiendom og adresse avvises med 400 for å unngå stille tap av opplysninger. API-et bruker PascalCase på feltnavn, og inndata er ikke følsomme for store/små bokstaver. Oppslag og søk returnerer samme struktur; hvert eiendomselement har i tillegg en stabil `Id` for endring og sletting.
+
+Prosjektet støtter `EksternProsjektreferanse` (200 tegn), `KommunaltSaksnummer` (200), `Tiltakshaver` (500), `Organisasjonsnummer` (9), `AnsvarligSokerOrganisasjonsnummer` (ni sifre) og `Tiltakstype` (200). `Prosjektnavn` er også tiltaksnavn; `Prosjektnr` brukes som reserve for ekstern referanse.
 
 Dublettkontrollen krever minst én felles kommune og bruker følgende regler:
 
-- **Dublett (`V0067`)**: samme kommunale saksnummer i hovedkommunen, samme eksterne referanse i samme system og hovedkommune, eller samme normaliserte prosjektnavn og minst én felles fullstendig matrikkelenhet. Feste- og seksjonsnummer inngår; også sekundærmatrikler kontrolleres.
+- **Dublett (`V0067`)**: samme kommunale saksnummer i en felles kommune, samme eksterne referanse i samme system og en felles kommune, eller samme normaliserte prosjektnavn og minst én felles fullstendig matrikkelenhet. Feste- og seksjonsnummer inngår; alle eiendommer kontrolleres.
 - **Sannsynlig dublett (`V0068`)**: stedstreff på full matrikkel, adresse eller bygningsnummer, sammen med samme eller nesten samme prosjektnavn. Et navn på minst ti tegn anses som nesten likt ved høyst 10 % redigeringsavstand; siffersekvensen må være identisk for å skille ulike byggetrinn. Stedstreff sammen med minst to av tiltakshaver/organisasjonsnummer, bygningsnummer og tiltakstype gir også et sannsynlig treff. Tiltakshaver og organisasjonsnummer teller samlet som ett signal.
 
 Tekst sammenlignes uten hensyn til store/små bokstaver og med normaliserte mellomrom og Unicode. Tomme verdier gir aldri treff. Kommune, adresse, tiltakshaver eller tiltakstype alene blokkerer ikke oppretting. Regler for sannsynlige dubletter er heuristikker, ikke statistiske sannsynligheter. Ved flere treff prioriteres dubletter foran sannsynlige dubletter, deretter flest samsvarende felter og ftbid i stigende rekkefølge.
 
-Begge typer treff avviser opprettingen med **409 Conflict**, `Location: /api/ftbid/{eksisterendeFtbid}` og ProblemDetails. Svaret inneholder `ftbidFeil.Kode`, `eksisterendeFtbid`, `sannsynligDublett` og `samsvarendeFelter`, slik at klienten kan forklare treffet og hente prosjektet. `Location` inkluderer eventuell `PathBase`. Eksisterende prosjekt endres ikke; prosjektnummer etterfylles ikke lenger. Dette endrer kontrakten for gjentatt oppretting fra 200 til 409. Samtidige opprettinger beskyttes av den eksisterende PostgreSQL-transaksjonslåsen på tvers av serviceinstanser, og en unik indeks på full hovedmatrikkel og normalisert prosjektnavn. Migrationen `LeggTilDublettopplysninger` legger til de nye feltene og oppdaterer indeksen.
+Begge typer treff avviser opprettingen med **409 Conflict**, `Location: /api/ftbid/{eksisterendeFtbid}` og ProblemDetails. Svaret inneholder `ftbidFeil.Kode`, `eksisterendeFtbid`, `sannsynligDublett` og `samsvarendeFelter`, slik at klienten kan forklare treffet og hente prosjektet. `Location` inkluderer eventuell `PathBase`. Eksisterende prosjekt endres ikke; prosjektnummer etterfylles ikke lenger. Dette endrer kontrakten for gjentatt oppretting fra 200 til 409. Samtidige opprettinger beskyttes av den eksisterende PostgreSQL-transaksjonslåsen på tvers av serviceinstanser, også ved endring av eiendommer. Den tidligere indeksen på hovedmatrikkel er fjernet sammen med de flate hovedfeltene. Prosjekter uten eiendommer gir ingen stedbaserte dublettreff.
 
 
 EAN-formatet er sju sifre GS1-prefiks, tre reserverte nuller, sju sifre PostgreSQL-sekvens og ett kontrollsiffer. Grunnkonfigurasjonen beholder adapterens eksempelprefiks `7099999`. Lokal utvikling bruker `7073387`, som samsvarer med det importerte v1-uttrekket. Prefikset kan endres med `Ftbid__Gs1Prefiks`; bruk samme prefiks som datagrunnlaget for kortoppslag. Sekvensen kan ikke gå rundt og gjenbruke identifikatorer.
@@ -132,32 +154,15 @@ EAN-formatet er sju sifre GS1-prefiks, tre reserverte nuller, sju sifre PostgreS
 
 Arkivreferansen må finnes i `skjemametadata`, og ftbid må finnes i `ftbid`. En arkivreferanse kan være tilknyttet én ftbid om gangen. Gjentatt tilknytning er idempotent; tilknytning til en annen ftbid flytter referansen. Full ftbid og de siste åtte sifrene kan brukes til oppslag; kortformen utvides med konfigurert GS1-prefiks og tre nuller.
 
-### Legg til og fjern adresser og matrikkelopplysninger
+### Endre eiendommer
 
-Endringene gjelder en eksisterende ftbid og støtter både full identifikator og de siste åtte sifrene. Alle fire operasjoner krever endrescope, med samme lokale tokenregel som resten av API-et. Vellykkede endringer returnerer 204 uten innhold. Ukjent ftbid gir 400 med regelkode `V0054`.
+Alle endringer krever endrescope og støtter full ftbid eller kortformen. De lagres atomisk med samme transaksjonslås som oppretting.
 
-Legg til én adresse eller matrikkelenhet per kall:
+- `POST /api/ftbid/{ftbid}/eiendom` legger til et `Eiendomsdata`-objekt, som et element i eksempelets liste. Hent prosjektet for å få den nye eiendommens `Id`.
+- `PUT /api/ftbid/{ftbid}/eiendom/{eiendomId}` erstatter hele eiendommen og dens adresseliste med samme struktur. ID og ftbid bevares. Utelatte valgfrie felt tømmes.
+- `DELETE /api/ftbid/{ftbid}/eiendom/{eiendomId}` sletter eiendommen og dens adresser. Også den siste eiendommen kan slettes; gjentatt sletting gir 204.
 
-```text
-POST /api/ftbid/{ftbid}/adresser
-{ "Adresse": "Storgata 3" }
-
-POST /api/ftbid/{ftbid}/matrikkelopplysninger
-{ "Kommunenummer": "0301", "Gaardsnummer": 30, "Bruksnummer": 3, "Festenummer": 0, "Seksjonsnummer": 2 }
-```
-
-Sletting identifiserer verdien gjennom søkeparametere, uten forespørselskropp. Adressen må URL-kodes. Matrikkelenheten identifiseres av alle fem feltene; feste- og seksjonsnummer er 0 hvis de utelates. Kommune, gårdsnummer og bruksnummer kreves.
-
-```text
-DELETE /api/ftbid/{ftbid}/adresser?adresse=Storgata%203
-DELETE /api/ftbid/{ftbid}/matrikkelopplysninger?kommunenummer=0301&gaardsnummer=30&bruksnummer=3&festenummer=0&seksjonsnummer=2
-```
-
-Tillegg av en eksisterende verdi og sletting av en verdi som allerede er borte returnerer også 204. Adressetekst trimmes og sammenlignes uten hensyn til store og små bokstaver. Matrikkelenheter sammenlignes på alle fem feltene. Nye verdier legges sist; maksimalt 100 adresser og 100 matrikkelenheter tillates. Ny matrikkel krever en gyldig kommune i prosjektets kommuneregister. Sletting kontrollerer formatet, men krever ikke at historiske kommunenummer er gyldige i dagens register.
-
-Neste gjenværende verdi blir hovedverdi hvis hovedadressen eller hovedmatrikkelen fjernes. Alle adresser kan fjernes, slik at hovedadressen blir null. Minst én matrikkelenhet må beholdes; sletting av den siste gir `V0061`. Ftbid, prosjektnavn og tilknyttede skjemaer bevares.
-
-Ved bytte av hovedmatrikkel oppdateres også hovedfeltene og den unike prosjektidentiteten i `ftbid`. Hvis dette ville gitt samme kommune, gårdsnummer, bruksnummer, festenummer, seksjonsnummer og normaliserte prosjektnavn som et annet prosjekt, avvises hele endringen med `V0062`. Alle endringer bruker samme transaksjonslås som oppretting og v1-import, slik at samtidige kall ikke mister data eller omgår listegrenser.
+Vellykkede endringer gir 204. Ukjent ftbid gir `V0054`, og erstatning av en eiendom som ikke tilhører denne ftbid-en gir `V0071`. Sletting av en ID på en annen ftbid endrer ingen eiendom. Tillegg eller endring som kolliderer med et annet prosjekts normaliserte navn og fullstendige eiendomsidentifikasjon avvises med `V0062`. De gamle `/adresser`- og `/matrikkelopplysninger`-rutene er fjernet.
 
 ### Søk
 
@@ -172,19 +177,19 @@ Ved bytte av hovedmatrikkel oppdateres også hovedfeltene og den unike prosjekti
 | Kommunalt saksnummer | `kommunaltsaksnummer` | Eksakt |
 | Organisasjonsnummer til ansvarlig søker | `ansvarligsokerorganisasjonsnummer` | Eksakt, ni sifre; separat fra `Organisasjonsnummer` for tiltakshaver |
 | Bygningsnummer | `bygningsnummer` | Eksakt |
-| Bruksenhetsnummer | `bruksenhetsnummer` | Eksakt |
-| Adresse | `adresse` | Deltreff i hovedadresse eller sekundæradresse |
-| Kommune og matrikkel | `kommunenummer`, `gaardsnummer`, `bruksnummer`, `festenummer`, `seksjonsnummer` | Eksakte verdier på **samme** hoved- eller sekundærmatrikkelenhet |
+| Bolignummer | `bolignummer` | Eksakt på eiendommen |
+| Adresse | `adresse` | Deltreff i strukturerte adressefelter på eiendommen |
+| Kommune og matrikkel | `kommunenummer`, `gaardsnummer`, `bruksnummer`, `festenummer`, `seksjonsnummer` | Eksakte verdier på **samme** eiendom |
 
 Matrikkelnummer må være ikke-negative. Utelatt feste- eller seksjonsnummer avgrenser ikke søket; `0` søker uttrykkelig etter null. Kommunenummer alene er tillatt, må ha fire sifre og kontrolleres ikke mot dagens kommuneregister, slik at historiske data kan søkes. Ugyldige identifikatorer, organisasjonsnummer og tall gir 400 med ProblemDetails.
 
-Oppretting og oppslag inkluderer `AnsvarligSokerOrganisasjonsnummer` (ni sifre) og `Bruksenhetsnummer` (maksimalt 50 tegn). Verdiene må registreres ved oppretting for å kunne gi treff; det eksisterende organisasjonsnummeret kopieres ikke til ansvarlig søker. Migrationen `FjernFtIdType` fjerner den tidligere identifikatortypen fra databasen. Prosjekter har ikke et eget statusfelt; status i helsesvar og ProblemDetails beskriver tjenesten og HTTP-svaret.
+Oppretting og oppslag inkluderer `AnsvarligSokerOrganisasjonsnummer` (ni sifre); `Bolignummer` ligger under `Eiendom`. Verdiene må registreres ved oppretting for å kunne gi treff; det eksisterende organisasjonsnummeret kopieres ikke til ansvarlig søker. Migrationen `FjernFtIdType` fjerner den tidligere identifikatortypen fra databasen. Prosjekter har ikke et eget statusfelt; status i helsesvar og ProblemDetails beskriver tjenesten og HTTP-svaret.
 
 ```text
 GET /api/ftbid/sok?kommunenummer=0301&gaardsnummer=10
 GET /api/ftbid/sok?adresse=storgata&prosjektnavn=utvidelse
 GET /api/ftbid/sok?ftid=707338700000000014
-GET /api/ftbid/sok?ansvarligsokerorganisasjonsnummer=123456789&bruksenhetsnummer=H0101
+GET /api/ftbid/sok?ansvarligsokerorganisasjonsnummer=123456789&bolignummer=H0101
 GET /api/ftbid/sok?kommunenummer=0301&gaardsnummer=10&bruksnummer=1&festenummer=0&seksjonsnummer=2
 ```
 
@@ -223,11 +228,11 @@ Regler med samme betydning gjenbruker NIREGs kode. Ftbids egne regler har koder 
 | V0058 | SekvensnummerUtenforOmrådetException |
 | V0059 | KonfigurasjonManglerException |
 | V0060 | UgyldigMaskinportenkonfigurasjonException |
-| V0061 | SisteMatrikkelKanIkkeFjernesException |
 | V0062 | ProsjektidentitetAlleredeIBrukException |
 | V0067 | FtbidDublettException (dublett) |
 | V0068 | FtbidDublettException (sannsynlig dublett) |
 | V0070 | UgyldigOrganisasjonsnummerException |
+| V0071 | EiendomIkkeFunnetException |
 
 HTTP-feilhåndteringen bruker ASP.NET Core `IExceptionHandler`, `UseExceptionHandler`, `AddProblemDetails`, `IProblemDetailsService` og `ProblemDetailsFactory`. `UseStatusCodePages` gir samme standardformat for tomme feilsvar, blant annet 401, 403, 404 og 429. Ugyldig JSON og modellbinding får også et problemobjekt med regelkode. Ingen egen håndskrevet HTTP-mellomvare brukes.
 
@@ -273,13 +278,18 @@ NIREGs særskilte SKO-rollekontroll videreføres ikke, siden denne servicen auto
 
 Scopene er konfigurerbare. Tilganger må være registrert i Maskinporten for konsumentene; denne løsningen oppretter ikke scopes eller klientregistreringer hos Digdir. Se [Digdirs dokumentasjon om token og validering](https://docs.digdir.no/docs/Maskinporten/maskinporten_protocol_token.html).
 
-## Matrikkelopplysninger
+## Migrering til eiendomsmodellen
 
-En ftbid må ha minst én matrikkelenhet. Opplysningene lagres og brukes til søk og dublettkontroll, uten eksterne oppslag eller kontroll av om eiendommen finnes. Det er ingen integrasjon mot Kartverkets Matrikkel og ingen innlogging eller konfigurasjon for et slikt oppslag.
+Migrationen `InnforEiendomsmodell` oppretter `eiendom` og `eiendomsadresse`. Den bevarer EAN, prosjektdata og skjematilknytninger, og konverterer eksisterende data slik:
 
-Lokal inndatavalidering beholdes: kommunenummer må ha fire sifre, matrikkelnummer må være ikke-negative, og nye enheter krever en gyldig kommune i prosjektets kommuneregister. Oppretting uten matrikkel avvises, og den siste matrikkelenheten kan ikke slettes (`V0061`). Sletting av historiske enheter krever ikke at kommunen fortsatt er gyldig.
+- Én eiendom per tidligere matrikkelenhet, med samme rekkefølge.
+- Alle gamle adresser legges på første eiendom som `Adresselinje1`; adresser kopieres ikke til andre eiendommer.
+- Prosjektets tidligere bygningsnummer og bruksenhetsnummer legges på første eiendom som `Bygningsnummer` og `Bolignummer`.
+- Det fylles ikke inn oppdiktede postnummer, kommunenavn eller andre strukturerte adressefelt.
 
-Regelkodene V0063–V0066 for den fjernede integrasjonen er utgått og gjenbrukes ikke.
+Migrationen kopierer de gamle verdiene til midlertidige tabeller før gamle tabeller og kolonner fjernes. Den nye modellen tillater null eiendommer. Automatisk `Down` støttes ikke, fordi den gamle modellen ikke kan representere eiendomsløse prosjekter eller alle de strukturerte adressefeltene; bruk en sikkerhetskopi ved tilbakeføring. Migrationen er ikke automatisk anvendt av kodeendringen, men Local kjører som før migrasjoner ved neste oppstart.
+
+Det gjøres ingen oppslag mot Kartverkets Matrikkel. Lokal kommune- og formatvalidering beholdes. Regelkodene V0061, V0063–V0066 og V0069 er utgått og gjenbrukes ikke.
 
 ## Referansedata
 
@@ -291,7 +301,7 @@ Det gamle søket hentet skjematype fra `FormMetadata` og tiltakstyper fra søkei
 dotnet run --project src/Ftpb.Ftbid.Api -- --importer /sti/til/referansedata.json
 ```
 
-Importkommandoen kjører migrasjoner og avslutter uten å starte HTTP-tjeneren. Eksport fra adapteren og automatisk synkronisering er ikke satt opp. V1-uttrekkene er importert til lokal utviklingsdatabase, som beskrevet nedenfor; ingen produksjonsdatabase er endret. Ved bruk av eksisterende ftbider må EAN-verdier bevares, tidsstempler konverteres til UTC, hovedverdier og barnelister fylles, og `ftbid_sekvens` flyttes forbi høyeste importerte sekvensnummer før nye identifikatorer utstedes.
+Importkommandoen kjører migrasjoner og avslutter uten å starte HTTP-tjeneren. Eksport fra adapteren og automatisk synkronisering er ikke satt opp. V1-uttrekkene er importert til lokal utviklingsdatabase, som beskrevet nedenfor; ingen produksjonsdatabase er endret. Ved bruk av eksisterende ftbider må EAN-verdier bevares, tidsstempler konverteres til UTC, eiendommer og adresselister fylles, og `ftbid_sekvens` flyttes forbi høyeste importerte sekvensnummer før nye identifikatorer utstedes.
 
 ## Import av v1-uttrekk
 
@@ -302,9 +312,9 @@ Identifikatoruttrekk: EAN, System, Distributed, Kommunenummer, Gaardsnummer, Bru
 Koblingsuttrekk: ArchiveReference, FtbId
 ```
 
-Dette er navnene i kildedatabasen. Målmodellen bruker norske navn. Importen bevarer 13 131 identifikatorer og alle 30 944 tilknytninger. Hver ftbid får en hovedmatrikkelenhet i `matrikkelopplysning`. Uttrekket har ingen adresser. `Distributed` tolkes som norsk lokal tid (`Europe/Oslo`) og konverteres til UTC.
+Dette er navnene i kildedatabasen. Målmodellen bruker norske navn. Importen bevarer 13 131 identifikatorer og alle 30 944 tilknytninger. Hver ftbid får en eiendom i `eiendom`. Uttrekket har ingen adresser. `Distributed` tolkes som norsk lokal tid (`Europe/Oslo`) og konverteres til UTC.
 
-På 30 tilfeldig utvalgte ftbid-er er det lagt til to syntetiske adresser og to ekstra matrikkelenheter per prosjekt: 60 adresser og 60 ekstra matrikkelenheter totalt. Tilfeldighetsfrøet er `20261008`, slik at samme utvalg kan gjenskapes. Adressene begynner med `[SYNTETISKE TESTDATA]`. Matrikkelenhetene bruker kunstige gårdsnummer over 9 000 000 og er også listet i rapporten. Opprinnelige hovedverdier i `ftbid` endres ikke. De syntetiske matrikkelenhetene er ikke reelle eiendommer.
+På 30 tilfeldig utvalgte ftbid-er er det lagt til to syntetiske adresser og to ekstra matrikkelenheter per prosjekt: 60 adresser og 60 ekstra matrikkelenheter totalt. Tilfeldighetsfrøet er `20261008`, slik at samme utvalg kan gjenskapes. Adressene begynner med `[SYNTETISKE TESTDATA]`. Matrikkelenhetene bruker kunstige gårdsnummer over 9 000 000 og er også listet i rapporten. Opprinnelig eiendomsidentifikasjon bevares. De syntetiske matrikkelenhetene er ikke reelle eiendommer.
 
 Alle arkivreferansene registreres i `skjemametadata` for å støtte fremmednøkkelen. Skjematype settes til null og tiltakstyper til en tom liste, fordi disse opplysningene ikke finnes i CSV-uttrekkene. Eksisterende skjemametadata overskrives ikke. Historiske kommunenummer importeres som del av prosjektdata; importen gjør dem ikke automatisk gyldige i dagens kommuneregister.
 
@@ -323,7 +333,7 @@ Sikkerhetskopier, SQL-import og rapport med alle syntetiske verdier finnes lokal
 
 ## Database og miljøer
 
-`ftbid` bevarer opplysningene fra `Ftbids`, inkludert EAN, prosjektinformasjon, system og utstedelsestidspunkt. `identifikasjonsmetadata` bevarer relasjonen fra `FormWorkflowLogs`: arkivreferanse og ftbid. `adresse` og `matrikkelopplysning` inneholder flere verdier per ftbid. Hovedverdiene ligger også i `ftbid` for å bevare prosjektidentiteten. `skjemametadata` og `kommune` inneholder nødvendige referansedata.
+`ftbid` bevarer opplysningene fra `Ftbids`, inkludert EAN, prosjektinformasjon, system og utstedelsestidspunkt. `identifikasjonsmetadata` bevarer relasjonen fra `FormWorkflowLogs`: arkivreferanse og ftbid. `eiendom` inneholder identifikasjon, bygningsnummer, bolignummer og kommunenavn per eiendom; `eiendomsadresse` inneholder de strukturerte adressene. En ftbid kan ha null eiendommer. `skjemametadata` og `kommune` inneholder nødvendige referansedata.
 
 | ASPNETCORE_ENVIRONMENT | Maskinporten | PostgreSQL | Migrering ved oppstart | Swagger |
 | --- | --- | --- | --- | --- |

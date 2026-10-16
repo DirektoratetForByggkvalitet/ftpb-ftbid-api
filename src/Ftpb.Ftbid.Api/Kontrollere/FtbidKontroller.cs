@@ -61,11 +61,11 @@ public sealed class FtbidKontroller(IFtbidOpprettingService oppretting, IFtbidOp
         [FromQuery] string? tiltaksnavn = null, [FromQuery] string? tiltakstype = null,
         [FromQuery] string? eksternprosjektreferanse = null, [FromQuery] string? kommunaltsaksnummer = null,
         [FromQuery] string? ansvarligsokerorganisasjonsnummer = null, [FromQuery] string? bygningsnummer = null,
-        [FromQuery] string? bruksenhetsnummer = null, [FromQuery] int? festenummer = null,
+        [FromQuery] string? bolignummer = null, [FromQuery] int? festenummer = null,
         [FromQuery] int? seksjonsnummer = null) =>
         Ok(await oppslag.SokAsync(new(kommunenummer, gaardsnummer, bruksnummer, prosjektnavn, adresse,
             ftid, tiltaksnavn, tiltakstype, eksternprosjektreferanse, kommunaltsaksnummer,
-            ansvarligsokerorganisasjonsnummer, bygningsnummer, bruksenhetsnummer, festenummer, seksjonsnummer), avbrudd));
+            ansvarligsokerorganisasjonsnummer, bygningsnummer, bolignummer, festenummer, seksjonsnummer), avbrudd));
 
     /// <summary>Henter prosjekt og metadata med full ftbid eller de siste åtte sifrene.</summary>
     [HttpGet("{ftbid}")]

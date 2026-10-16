@@ -2,15 +2,13 @@ using Ftpb.Ftbid.Application.Kontrakter;
 
 namespace Ftpb.Ftbid.Application.Services;
 
-/// <summary>Validerer og endrer adresser og matrikkelopplysninger for en eksisterende ftbid.</summary>
+/// <summary>Endrer eiendommer med strukturerte adresser og identifikasjon.</summary>
 public interface IFtbidEiendomService
 {
-    /// <summary>Legger til en adresse uten duplikater. Første adresse blir hovedadresse.</summary>
-    Task LeggTilAdresseAsync(string ftbid, string adresse, CancellationToken avbrudd = default);
-    /// <summary>Fjerner adressen hvis den finnes og oppdaterer hovedadressen.</summary>
-    Task FjernAdresseAsync(string ftbid, string adresse, CancellationToken avbrudd = default);
-    /// <summary>Legger til en matrikkelenhet uten duplikater.</summary>
-    Task LeggTilMatrikkelAsync(string ftbid, Matrikkeldata matrikkel, CancellationToken avbrudd = default);
-    /// <summary>Fjerner matrikkelenheten hvis den finnes, men bevarer minst én matrikkel.</summary>
-    Task FjernMatrikkelAsync(string ftbid, Matrikkeldata matrikkel, CancellationToken avbrudd = default);
+    /// <summary>Legger til en eiendom.</summary>
+    Task LeggTilAsync(string ftbid, Eiendomsdata eiendom, CancellationToken avbrudd = default);
+    /// <summary>Erstatter eiendommen med angitt ID.</summary>
+    Task ErstattAsync(string ftbid, long eiendomId, Eiendomsdata eiendom, CancellationToken avbrudd = default);
+    /// <summary>Fjerner eiendommen hvis den finnes, også når den er den siste.</summary>
+    Task FjernAsync(string ftbid, long eiendomId, CancellationToken avbrudd = default);
 }

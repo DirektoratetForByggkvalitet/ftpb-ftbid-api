@@ -41,14 +41,15 @@ public enum Feilkode
     V0059,
     /// <summary>Maskinportens utsteder eller scopes er ugyldige.</summary>
     V0060,
-    /// <summary>Den siste matrikkelenheten kan ikke fjernes.</summary>
-    V0061,
-    /// <summary>En endring av hovedmatrikkelen kolliderer med en eksisterende prosjektidentitet.</summary>
-    V0062,
+
+    /// <summary>Eiendommens identifikasjon og prosjektnavn kolliderer med et annet prosjekt.</summary>
+    V0062 = 20, // V0061 er utgått.
     /// <summary>Prosjektet er en dublett av en eksisterende ftbid.</summary>
     V0067 = 25, // V0063–V0066 er utgått; behold eksisterende enumverdier.
     /// <summary>Prosjektopplysningene tyder på en sannsynlig dublett.</summary>
     V0068,
     /// <summary>Ansvarlig søkers organisasjonsnummer har ugyldig format.</summary>
     V0070 = 28, // V0069 er utgått; behold eksisterende enumverdi.
+    /// <summary>Eiendommen finnes ikke på denne ftbid-en.</summary>
+    V0071,
 }

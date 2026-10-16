@@ -5,98 +5,87 @@
 @adresse = http://localhost:5080
 @token = eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL3Rlc3QubWFza2lucG9ydGVuLm5vLyIsImNvbnN1bWVyIjp7IklEIjoiMDE5Mjo5OTk4ODg3NzcifSwic2NvcGUiOiJkaWJrOmJ5Z2cvZnRiaWQubGVzIGRpYms6YnlnZy9mdGJpZC5lbmRyZSIsImV4cCI6MH0.a3VuLWxva2FsdC1la3NlbXBlbA
 
-### Opprett prosjekt med flere adresser og matrikkelopplysninger
-# Kjør dette først. Rider lagrer identifikatoren til de neste forespørslene.
+### Opprett prosjekt med strukturerte eiendommer (Eiendom kan også være [])
 POST {{adresse}}/api/ftbid
 Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
-  "Kommunenummer": "0301",
-  "Gaardsnummer": 10,
-  "Bruksnummer": 1,
-  "Prosjektnavn": "Lokalt eksempelprosjekt",
-  "System": "Lokale HTTP-eksempler",
-  "AnsvarligSokerOrganisasjonsnummer": "123456789",
-  "Bruksenhetsnummer": "H0101",
-  "Adresser": ["Karl Johans gate 1", "Storgata 2"],
-  "Matrikkelopplysninger": [
-    { "Kommunenummer": "0301", "Gaardsnummer": 20, "Bruksnummer": 2, "Festenummer": 0, "Seksjonsnummer": 1 }
+  "Prosjektnavn": "Utvidelse av bygget",
+  "Prosjektnr": "P-1001",
+  "System": "Søknadssystem",
+  "Eiendom": [
+    {
+      "Eiendomsidentifikasjon": {
+        "Kommunenummer": "0301",
+        "Gaardsnummer": 124,
+        "Bruksnummer": 55,
+        "Festenummer": 2,
+        "Seksjonsnummer": 0
+      },
+      "Adresse": [
+        {
+          "Adresselinje1": "Karl Johans gate 1",
+          "Adresselinje2": "Hyttefelt 1",
+          "Adresselinje3": null,
+          "Postnr": "0154",
+          "Poststed": "Oslo",
+          "Landkode": "NO",
+          "Gatenavn": "Karl Johans gate",
+          "Husnr": "1",
+          "Bokstav": null
+        }
+      ],
+      "Bygningsnummer": "300827824",
+      "Bolignummer": "H0201",
+      "Kommunenavn": "Oslo"
+    }
   ]
 }
 
 > {%
-    client.test("Prosjektet er opprettet", function () {
-        client.assert(response.status === 200, "Forventet HTTP 200");
-    });
-    if (response.status === 200) {
-        client.global.set("opprettet_ftbid", response.body);
-    }
+    if (response.status === 200) client.global.set("opprettet_ftbid", response.body);
 %}
 
-### Knytt kjent arkivreferanse til det opprettede prosjektet
-# AR123456789 må være importert fra data/referansedata.eksempel.json.
+### Hent prosjektet og eiendoms-ID
+GET {{adresse}}/api/ftbid/{{opprettet_ftbid}}
+Authorization: Bearer {{token}}
+
+> {%
+    if (response.status === 200 && response.body[0].Eiendom.length > 0)
+        client.global.set("eiendom_id", response.body[0].Eiendom[0].Id);
+%}
+
+### Legg til eiendom
+POST {{adresse}}/api/ftbid/{{opprettet_ftbid}}/eiendom
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "Eiendomsidentifikasjon": { "Kommunenummer": "0301", "Gaardsnummer": 21, "Bruksnummer": 30 }, "Adresse": [] }
+
+### Erstatt hele eiendommen og adresselisten
+PUT {{adresse}}/api/ftbid/{{opprettet_ftbid}}/eiendom/{{eiendom_id}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "Eiendomsidentifikasjon": { "Kommunenummer": "0301", "Gaardsnummer": 124, "Bruksnummer": 55 },
+  "Adresse": [{ "Adresselinje1": "Storgata 3", "Postnr": "0155", "Poststed": "Oslo", "Landkode": "NO" }],
+  "Bygningsnummer": "300827824", "Bolignummer": "H0201", "Kommunenavn": "Oslo" }
+
+### Søk (alle eiendomsfiltre må treffe samme eiendom)
+GET {{adresse}}/api/ftbid/sok?kommunenummer=0301&gaardsnummer=124&bolignummer=H0201
+Authorization: Bearer {{token}}
+
+### Slett eiendom (også siste eiendom kan slettes)
+DELETE {{adresse}}/api/ftbid/{{opprettet_ftbid}}/eiendom/{{eiendom_id}}
+Authorization: Bearer {{token}}
+
+### Knytt arkivreferanse
 POST {{adresse}}/api/ftbid/tilknytt
 Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "Ftbid": "{{opprettet_ftbid}}", "Arkivreferanse": "AR123456789" }
 
-### Søk i adresser og prosjektnavn
-GET {{adresse}}/api/ftbid/sok?adresse=storgata&prosjektnavn=Lokalt%20eksempelprosjekt
-Authorization: Bearer {{token}}
-
-### Søk med FtID
-GET {{adresse}}/api/ftbid/sok?ftid={{opprettet_ftbid}}
-Authorization: Bearer {{token}}
-
-### Søk med ansvarlig søker, bruksenhet og tiltaksnavn
-GET {{adresse}}/api/ftbid/sok?ansvarligsokerorganisasjonsnummer=123456789&bruksenhetsnummer=H0101&tiltaksnavn=eksempel
-Authorization: Bearer {{token}}
-
-### Søk i alle fem matrikkelfelter
-GET {{adresse}}/api/ftbid/sok?kommunenummer=0301&gaardsnummer=20&bruksnummer=2&festenummer=0&seksjonsnummer=1
-Authorization: Bearer {{token}}
-
-### Hent prosjekt og identifikasjonsmetadata
-GET {{adresse}}/api/ftbid/{{opprettet_ftbid}}
-Authorization: Bearer {{token}}
-
-### Legg til en adresse
-POST {{adresse}}/api/ftbid/{{opprettet_ftbid}}/adresser
-Authorization: Bearer {{token}}
-Content-Type: application/json
-
-{ "Adresse": "Storgata 3" }
-
-### Fjern den ekstra adressen
-DELETE {{adresse}}/api/ftbid/{{opprettet_ftbid}}/adresser?adresse=Storgata%203
-Authorization: Bearer {{token}}
-
-### Legg til en matrikkelenhet
-POST {{adresse}}/api/ftbid/{{opprettet_ftbid}}/matrikkelopplysninger
-Authorization: Bearer {{token}}
-Content-Type: application/json
-
-{ "Kommunenummer": "0301", "Gaardsnummer": 30, "Bruksnummer": 3, "Festenummer": 0, "Seksjonsnummer": 2 }
-
-### Fjern den ekstra matrikkelenheten
-DELETE {{adresse}}/api/ftbid/{{opprettet_ftbid}}/matrikkelopplysninger?kommunenummer=0301&gaardsnummer=30&bruksnummer=3&festenummer=0&seksjonsnummer=2
-Authorization: Bearer {{token}}
-
-### Kontroller API og PostgreSQL
-# Helseendepunktene er offentlige også uten token.
+### Helsesjekk
 GET {{adresse}}/helse
-Authorization: Bearer {{token}}
-
-### Kontroller at API-prosessen svarer
-GET {{adresse}}/helse/levende
-Authorization: Bearer {{token}}
-
-### Hent OpenAPI-dokumentet
-GET {{adresse}}/openapi/v1.json
-Authorization: Bearer {{token}}
-
-### Åpne Swagger-dokumentasjonen
-GET {{adresse}}/swagger/index.html
-Authorization: Bearer {{token}}

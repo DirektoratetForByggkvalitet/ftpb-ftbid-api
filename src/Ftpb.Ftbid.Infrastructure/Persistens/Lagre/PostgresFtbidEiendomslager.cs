@@ -1,98 +1,67 @@
-using Ftpb.Ftbid.Application.Kontrakter;
 using Ftpb.Ftbid.Application.Lagring;
 using Ftpb.Ftbid.Domain.Feil.Unntak;
 using Ftpb.Ftbid.Domain.Prosjekter;
 using Microsoft.EntityFrameworkCore;
-using FtbidEntitet = Ftpb.Ftbid.Domain.Prosjekter.Ftbid;
+using Prosjekt = Ftpb.Ftbid.Domain.Prosjekter.Ftbid;
 
 namespace Ftpb.Ftbid.Infrastructure.Persistens.Lagre;
 
-/// <summary>Endrer adresser og matrikkelenheter atomisk i PostgreSQL.</summary>
+/// <summary>Endrer en eiendom og dens adresser atomisk, uten å miste samtidige endringer.</summary>
 public sealed class PostgresFtbidEiendomslager(FtbidDbContext database) : IFtbidEiendomslager
 {
     /// <inheritdoc />
-    public Task LeggTilAdresseAsync(string ftbid, string adresse, CancellationToken avbrudd) =>
-        EndreAsync(ftbid, prosjekt =>
-        {
-            if (prosjekt.Adresser.Any(a => string.Equals(a.Adressetekst, adresse, StringComparison.OrdinalIgnoreCase)))
-                return Task.CompletedTask;
-            if (prosjekt.Adresser.Count >= 100) throw new ForMangeVerdierException("Adresser", 100);
-            prosjekt.Adresser.Add(new Adresse { Ftbid = ftbid, Adressetekst = adresse,
-                Rekkefolge = prosjekt.Adresser.Select(a => a.Rekkefolge).DefaultIfEmpty(-1).Max() + 1 });
-            prosjekt.Adresse = prosjekt.Adresser.MinBy(a => a.Rekkefolge)!.Adressetekst;
-            return Task.CompletedTask;
-        }, avbrudd);
+    public Task LeggTilAsync(string ftbid, Eiendom eiendom, CancellationToken avbrudd) => EndreAsync(ftbid, async prosjekt =>
+    {
+        if (prosjekt.Eiendom.Count >= 100) throw new ForMangeVerdierException("Eiendom", 100);
+        await KontrollerIdentitetAsync(prosjekt, eiendom, avbrudd);
+        eiendom.Ftbid = ftbid;
+        eiendom.Rekkefolge = prosjekt.Eiendom.Select(e => e.Rekkefolge).DefaultIfEmpty(-1).Max() + 1;
+        prosjekt.Eiendom.Add(eiendom);
+    }, avbrudd);
 
     /// <inheritdoc />
-    public Task FjernAdresseAsync(string ftbid, string adresse, CancellationToken avbrudd) =>
-        EndreAsync(ftbid, prosjekt =>
-        {
-            foreach (var verdi in prosjekt.Adresser.Where(a =>
-                string.Equals(a.Adressetekst, adresse, StringComparison.OrdinalIgnoreCase)).ToList())
-            {
-                database.Remove(verdi);
-                prosjekt.Adresser.Remove(verdi);
-            }
-            prosjekt.Adresse = prosjekt.Adresser.MinBy(a => a.Rekkefolge)?.Adressetekst;
-            return Task.CompletedTask;
-        }, avbrudd);
+    public Task ErstattAsync(string ftbid, long eiendomId, Eiendom eiendom, CancellationToken avbrudd) => EndreAsync(ftbid, async prosjekt =>
+    {
+        var gammel = prosjekt.Eiendom.SingleOrDefault(e => e.Id == eiendomId)
+            ?? throw new EiendomIkkeFunnetException(eiendomId);
+        await KontrollerIdentitetAsync(prosjekt, eiendom, avbrudd);
+        database.RemoveRange(gammel.Adresse);
+        gammel.Adresse.Clear();
+        // Slett gamle adresseposisjoner før de brukes igjen, innenfor samme transaksjon.
+        await database.SaveChangesAsync(avbrudd);
+        gammel.Eiendomsidentifikasjon = eiendom.Eiendomsidentifikasjon;
+        gammel.Bygningsnummer = eiendom.Bygningsnummer;
+        gammel.Bolignummer = eiendom.Bolignummer;
+        gammel.Kommunenavn = eiendom.Kommunenavn;
+        gammel.Adresse = eiendom.Adresse;
+    }, avbrudd);
 
     /// <inheritdoc />
-    public Task LeggTilMatrikkelAsync(string ftbid, Matrikkeldata matrikkel, CancellationToken avbrudd) =>
-        EndreAsync(ftbid, prosjekt =>
-        {
-            if (prosjekt.Matrikkelopplysninger.Any(m => ErSammeMatrikkel(m, matrikkel))) return Task.CompletedTask;
-            if (prosjekt.Matrikkelopplysninger.Count >= 100)
-                throw new ForMangeVerdierException("Matrikkelopplysninger", 100);
-            prosjekt.Matrikkelopplysninger.Add(new Matrikkelopplysning { Ftbid = ftbid,
-                Kommunenummer = matrikkel.Kommunenummer, Gaardsnummer = matrikkel.Gaardsnummer,
-                Bruksnummer = matrikkel.Bruksnummer, Festenummer = matrikkel.Festenummer,
-                Seksjonsnummer = matrikkel.Seksjonsnummer,
-                Rekkefolge = prosjekt.Matrikkelopplysninger.Max(m => m.Rekkefolge) + 1 });
-            return Task.CompletedTask;
-        }, avbrudd);
+    public Task FjernAsync(string ftbid, long eiendomId, CancellationToken avbrudd) => EndreAsync(ftbid, prosjekt =>
+    {
+        var eiendom = prosjekt.Eiendom.SingleOrDefault(e => e.Id == eiendomId);
+        if (eiendom is not null) { database.Remove(eiendom); prosjekt.Eiendom.Remove(eiendom); }
+        return Task.CompletedTask;
+    }, avbrudd);
 
-    /// <inheritdoc />
-    public Task FjernMatrikkelAsync(string ftbid, Matrikkeldata matrikkel, CancellationToken avbrudd) =>
-        EndreAsync(ftbid, async prosjekt =>
-        {
-            var verdier = prosjekt.Matrikkelopplysninger.Where(m => ErSammeMatrikkel(m, matrikkel)).ToList();
-            if (verdier.Count == 0) return;
-            if (verdier.Count == prosjekt.Matrikkelopplysninger.Count)
-                throw new SisteMatrikkelKanIkkeFjernesException(ftbid);
-            foreach (var verdi in verdier)
-            {
-                database.Remove(verdi);
-                prosjekt.Matrikkelopplysninger.Remove(verdi);
-            }
-            var hoved = prosjekt.Matrikkelopplysninger.MinBy(m => m.Rekkefolge)!;
-            if (await database.Ftbider.AnyAsync(f => f.Ean != ftbid &&
-                f.Kommunenummer == hoved.Kommunenummer && f.Gaardsnummer == hoved.Gaardsnummer &&
-                f.Bruksnummer == hoved.Bruksnummer && f.Festenummer == hoved.Festenummer &&
-                f.Seksjonsnummer == hoved.Seksjonsnummer && f.NormalisertProsjektnavn == prosjekt.NormalisertProsjektnavn, avbrudd))
-                throw new ProsjektidentitetAlleredeIBrukException(ftbid);
-            prosjekt.Kommunenummer = hoved.Kommunenummer;
-            prosjekt.Gaardsnummer = hoved.Gaardsnummer;
-            prosjekt.Bruksnummer = hoved.Bruksnummer;
-            prosjekt.Festenummer = hoved.Festenummer;
-            prosjekt.Seksjonsnummer = hoved.Seksjonsnummer;
-        }, avbrudd);
+    private async Task KontrollerIdentitetAsync(Prosjekt prosjekt, Eiendom eiendom, CancellationToken avbrudd)
+    {
+        var ident = eiendom.Eiendomsidentifikasjon;
+        if (await database.Ftbider.AnyAsync(p => p.Ean != prosjekt.Ean && p.NormalisertProsjektnavn == prosjekt.NormalisertProsjektnavn &&
+            p.Eiendom.Any(e => e.Eiendomsidentifikasjon.Kommunenummer == ident.Kommunenummer &&
+                e.Eiendomsidentifikasjon.Gaardsnummer == ident.Gaardsnummer && e.Eiendomsidentifikasjon.Bruksnummer == ident.Bruksnummer &&
+                e.Eiendomsidentifikasjon.Festenummer == ident.Festenummer && e.Eiendomsidentifikasjon.Seksjonsnummer == ident.Seksjonsnummer), avbrudd))
+            throw new ProsjektidentitetAlleredeIBrukException(prosjekt.Ean);
+    }
 
-    private async Task EndreAsync(string ftbid, Func<FtbidEntitet, Task> endring, CancellationToken avbrudd)
+    private async Task EndreAsync(string ftbid, Func<Prosjekt, Task> endring, CancellationToken avbrudd)
     {
         await using var transaksjon = await database.Database.BeginTransactionAsync(avbrudd);
-        // Samme lås som ved oppretting beskytter også endringer av den unike prosjektidentiteten.
         await database.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(7099999)", avbrudd);
-        var prosjekt = await database.Ftbider.Include(f => f.Adresser).Include(f => f.Matrikkelopplysninger)
-            .AsSplitQuery().SingleOrDefaultAsync(f => f.Ean == ftbid, avbrudd)
-            ?? throw new FtbidIkkeFunnetException(ftbid);
+        var prosjekt = await database.Ftbider.Include(p => p.Eiendom).ThenInclude(e => e.Adresse).AsSplitQuery()
+            .SingleOrDefaultAsync(p => p.Ean == ftbid, avbrudd) ?? throw new FtbidIkkeFunnetException(ftbid);
         await endring(prosjekt);
         await database.SaveChangesAsync(avbrudd);
         await transaksjon.CommitAsync(avbrudd);
     }
-
-    private static bool ErSammeMatrikkel(Matrikkelopplysning verdi, Matrikkeldata matrikkel) =>
-        verdi.Kommunenummer == matrikkel.Kommunenummer && verdi.Gaardsnummer == matrikkel.Gaardsnummer &&
-        verdi.Bruksnummer == matrikkel.Bruksnummer && verdi.Festenummer == matrikkel.Festenummer &&
-        verdi.Seksjonsnummer == matrikkel.Seksjonsnummer;
 }

@@ -14,9 +14,8 @@ public sealed class FtbidDublettService : IFtbidDublettService
 
     private static FtbidDublettTreff? Vurder(FtbidEntitet ny, FtbidEntitet gammel)
     {
-        var kommuner = ny.Matrikkelopplysninger.Select(m => m.Kommunenummer).Append(ny.Kommunenummer).ToHashSet();
-        if (!gammel.Matrikkelopplysninger.Select(m => m.Kommunenummer).Append(gammel.Kommunenummer).Any(kommuner.Contains))
-            return null;
+        var kommuner = ny.Eiendom.Select(e => e.Eiendomsidentifikasjon.Kommunenummer).ToHashSet();
+        if (!gammel.Eiendom.Any(e => kommuner.Contains(e.Eiendomsidentifikasjon.Kommunenummer))) return null;
         var felter = new List<string> { "Kommune" };
         bool Match(string felt, string? a, string? b)
         {
@@ -24,22 +23,20 @@ public sealed class FtbidDublettService : IFtbidDublettService
             felter.Add(felt);
             return true;
         }
-        var matrikkel = ny.Matrikkelopplysninger.Any(a => gammel.Matrikkelopplysninger.Any(b =>
-            a.Kommunenummer == b.Kommunenummer && a.Gaardsnummer == b.Gaardsnummer &&
-            a.Bruksnummer == b.Bruksnummer && a.Festenummer == b.Festenummer && a.Seksjonsnummer == b.Seksjonsnummer));
-        if (matrikkel) felter.Add("Matrikkelopplysninger");
-        var adresse = ny.Adresser.Any(a => gammel.Adresser.Any(b => Lik(a.Adressetekst, b.Adressetekst)));
+        var matrikkel = ny.Eiendom.Any(a => gammel.Eiendom.Any(b => a.Eiendomsidentifikasjon == b.Eiendomsidentifikasjon));
+        if (matrikkel) felter.Add("Eiendomsidentifikasjon");
+        var adresse = ny.Eiendom.SelectMany(e => e.Adresse).Any(a => gammel.Eiendom.SelectMany(e => e.Adresse).Any(b =>
+            Lik(AdresseTekst(a), AdresseTekst(b))));
         if (adresse) felter.Add("Adresse");
         var navn = Match("Prosjektnavn", ny.Prosjektnavn, gammel.Prosjektnavn);
-        var referanse = ny.Kommunenummer == gammel.Kommunenummer && Lik(ny.System, gammel.System) &&
+        var referanse = Lik(ny.System, gammel.System) &&
             Match("EksternProsjektreferanse", ny.EksternProsjektreferanse ?? ny.Prosjektnummer,
                 gammel.EksternProsjektreferanse ?? gammel.Prosjektnummer);
-        // Saksnummer og eksterne referanser gjelder hovedkommunen; sekundærkommuner kan ikke gi et slikt treff.
-        var sak = ny.Kommunenummer == gammel.Kommunenummer &&
-            Match("KommunaltSaksnummer", ny.KommunaltSaksnummer, gammel.KommunaltSaksnummer);
+        var sak = Match("KommunaltSaksnummer", ny.KommunaltSaksnummer, gammel.KommunaltSaksnummer);
         var organisasjon = Match("Organisasjonsnummer", ny.Organisasjonsnummer, gammel.Organisasjonsnummer);
         var tiltakshaver = Match("Tiltakshaver", ny.Tiltakshaver, gammel.Tiltakshaver);
-        var bygning = Match("Bygningsnummer", ny.Bygningsnummer, gammel.Bygningsnummer);
+        var bygning = ny.Eiendom.Any(a => gammel.Eiendom.Any(b => Lik(a.Bygningsnummer, b.Bygningsnummer)));
+        if (bygning) felter.Add("Bygningsnummer");
         var tiltak = Match("Tiltakstype", ny.Tiltakstype, gammel.Tiltakstype);
         if (sak || referanse || (matrikkel && navn)) return new(gammel.Ean, false, felter);
         var lignendeNavn = !navn && Lignende(ny.Prosjektnavn, gammel.Prosjektnavn);
@@ -49,6 +46,10 @@ public sealed class FtbidDublettService : IFtbidDublettService
         return stedsmatch && (navn || lignendeNavn || stottesignaler >= 2)
             ? new(gammel.Ean, true, felter) : null;
     }
+
+    private static string AdresseTekst(Ftpb.Ftbid.Domain.Prosjekter.Eiendomsadresse a) =>
+        string.Join(' ', new[] { a.Adresselinje1, a.Adresselinje2, a.Adresselinje3, a.Postnr, a.Poststed,
+            a.Landkode, a.Gatenavn, a.Husnr, a.Bokstav }.Where(v => !string.IsNullOrWhiteSpace(v)));
 
     private static string Normaliser(string? verdi) => string.Join(' ',
         (verdi ?? "").Normalize(NormalizationForm.FormC).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).ToLowerInvariant();

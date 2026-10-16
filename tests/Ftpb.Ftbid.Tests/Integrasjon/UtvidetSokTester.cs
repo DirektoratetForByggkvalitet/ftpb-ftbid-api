@@ -14,12 +14,13 @@ public sealed class UtvidetSokTester(PostgresApiOppsett oppsett)
     private static OpprettFtbid NyttProsjekt() => new()
     {
         Prosjektnavn = "Søketest " + Guid.NewGuid().ToString("N"), System = "Søketester",
-        Kommunenummer = "0301", Gaardsnummer = 71, Bruksnummer = 9, Festenummer = 0, Seksjonsnummer = 0,
-        Matrikkelopplysninger = [new("5001", 82, 10, 3, 4)],
-        Adresse = "Søkeadresse " + Guid.NewGuid().ToString("N"),
+        Eiendom = [new() { Eiendomsidentifikasjon = new("0301", 71, 9), Adresse = [new("Søkeadresse 1")] },
+            new() { Eiendomsidentifikasjon = new("5001", 82, 10, 3, 4),
+                Adresse = [new("Søkeadresse " + Guid.NewGuid().ToString("N"))],
+                Bygningsnummer = "BYGG-" + Guid.NewGuid(), Bolignummer = "H0101" }],
         EksternProsjektreferanse = "REF-" + Guid.NewGuid(), KommunaltSaksnummer = "SAK-" + Guid.NewGuid(),
-        Tiltakstype = "Tiltak-" + Guid.NewGuid(), Bygningsnummer = "BYGG-" + Guid.NewGuid(),
-        Bruksenhetsnummer = "H0101", AnsvarligSokerOrganisasjonsnummer = "987654321",
+        Tiltakstype = "Tiltak-" + Guid.NewGuid(),
+        AnsvarligSokerOrganisasjonsnummer = "987654321",
         Organisasjonsnummer = "123456789"
     };
 
@@ -32,7 +33,7 @@ public sealed class UtvidetSokTester(PostgresApiOppsett oppsett)
         Assert.Equal(HttpStatusCode.OK, opprettet.StatusCode);
         var ftbid = (await opprettet.Content.ReadFromJsonAsync<string>())!;
         var hentet = Assert.Single((await klient.GetFromJsonAsync<List<FtbidResultat>>("/api/ftbid/" + ftbid))!);
-        Assert.Equal(prosjekt.Bruksenhetsnummer, hentet.Bruksenhetsnummer);
+        Assert.Equal(prosjekt.Eiendom[1].Bolignummer, hentet.Eiendom[1].Bolignummer);
         Assert.Equal(prosjekt.AnsvarligSokerOrganisasjonsnummer, hentet.AnsvarligSokerOrganisasjonsnummer);
         Assert.Equal(prosjekt.Organisasjonsnummer, hentet.Organisasjonsnummer);
         var filtre = new Dictionary<string, string>
@@ -42,8 +43,8 @@ public sealed class UtvidetSokTester(PostgresApiOppsett oppsett)
             ["eksternprosjektreferanse"] = prosjekt.EksternProsjektreferanse!,
             ["kommunaltsaksnummer"] = prosjekt.KommunaltSaksnummer!,
             ["ansvarligsokerorganisasjonsnummer"] = prosjekt.AnsvarligSokerOrganisasjonsnummer!,
-            ["bygningsnummer"] = prosjekt.Bygningsnummer!, ["bruksenhetsnummer"] = "h0101",
-            ["adresse"] = prosjekt.Adresse!, ["kommunenummer"] = "5001",
+            ["bygningsnummer"] = prosjekt.Eiendom[1].Bygningsnummer!, ["bolignummer"] = "h0101",
+            ["adresse"] = prosjekt.Eiendom[1].Adresse[0].Adresselinje1!, ["kommunenummer"] = "5001",
             ["gaardsnummer"] = "82", ["bruksnummer"] = "10", ["festenummer"] = "3", ["seksjonsnummer"] = "4"
         };
         foreach (var (felt, verdi) in filtre)
@@ -71,7 +72,7 @@ public sealed class UtvidetSokTester(PostgresApiOppsett oppsett)
         var grunnlag = "/api/ftbid/sok?ftid=" + ftbid;
         foreach (var feilfilter in new[] { "festenummer=0&seksjonsnummer=4", "kommunenummer=0301&gaardsnummer=82",
             "gaardsnummer=71&bruksnummer=9&festenummer=3", "gaardsnummer=82&seksjonsnummer=0",
-            "tiltakstype=ukjent", "bygningsnummer=ukjent", "bruksenhetsnummer=ukjent",
+            "tiltakstype=ukjent", "bygningsnummer=ukjent", "bolignummer=ukjent",
             "kommunaltsaksnummer=ukjent", "eksternprosjektreferanse=" + Uri.EscapeDataString(prosjekt.EksternProsjektreferanse![..8]) })
             Assert.Empty((await klient.GetFromJsonAsync<List<FtbidResultat>>(grunnlag + "&" + feilfilter))!);
         Assert.Equal(ftbid, Assert.Single((await klient.GetFromJsonAsync<List<FtbidResultat>>(grunnlag +
@@ -113,7 +114,7 @@ public sealed class UtvidetSokTester(PostgresApiOppsett oppsett)
     [InlineData("kommunenummer=abc")]
     [InlineData("ansvarligsokerorganisasjonsnummer=123")]
     [InlineData("ansvarligsokerorganisasjonsnummer=12345678a")]
-    [InlineData("ftid=%20&tiltakstype=%20&bruksenhetsnummer=%20")]
+    [InlineData("ftid=%20&tiltakstype=%20&bolignummer=%20")]
     public async Task UgyldigeSokGir400(string filter)
     {
         using var klient = oppsett.Klient();
@@ -124,13 +125,13 @@ public sealed class UtvidetSokTester(PostgresApiOppsett oppsett)
 
     [Theory]
     [InlineData("organisasjonsnummer")]
-    [InlineData("bruksenhetsnummer")]
+    [InlineData("bolignummer")]
     public async Task UgyldigeNyeOpprettingsfelterAvvises(string felt)
     {
         using var klient = oppsett.Klient();
         var prosjekt = NyttProsjekt();
         if (felt == "organisasjonsnummer") prosjekt.AnsvarligSokerOrganisasjonsnummer = "12345678x";
-        if (felt == "bruksenhetsnummer") prosjekt.Bruksenhetsnummer = new string('H', 51);
+        if (felt == "bolignummer") prosjekt.Eiendom[1].Bolignummer = new string('H', 51);
         Assert.Equal(HttpStatusCode.BadRequest, (await klient.PostAsJsonAsync("/api/ftbid", prosjekt)).StatusCode);
     }
 
@@ -142,7 +143,7 @@ public sealed class UtvidetSokTester(PostgresApiOppsett oppsett)
         var parametere = dokument.RootElement.GetProperty("paths").GetProperty("/api/ftbid/sok")
             .GetProperty("get").GetProperty("parameters").EnumerateArray().Select(p => p.GetProperty("name").GetString()).ToList();
         foreach (var felt in new[] { "ftid", "prosjektnavn", "tiltaksnavn", "tiltakstype", "eksternprosjektreferanse",
-            "kommunaltsaksnummer", "ansvarligsokerorganisasjonsnummer", "bygningsnummer", "bruksenhetsnummer", "adresse",
+            "kommunaltsaksnummer", "ansvarligsokerorganisasjonsnummer", "bygningsnummer", "bolignummer", "adresse",
             "kommunenummer", "gaardsnummer", "bruksnummer", "festenummer", "seksjonsnummer" })
             Assert.Contains(felt, parametere);
     }

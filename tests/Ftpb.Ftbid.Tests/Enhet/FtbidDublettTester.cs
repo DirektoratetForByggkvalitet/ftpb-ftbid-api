@@ -10,8 +10,8 @@ public sealed class FtbidDublettTester
     private readonly FtbidDublettService _service = new();
     private static Prosjekt Ny(string navn = "Tilbygg Solsiden skole", string kommune = "0301", int seksjon = 0) => new()
     {
-        Ean = "709999900000000017", Kommunenummer = kommune, Prosjektnavn = navn, System = "Test",
-        Matrikkelopplysninger = [new() { Kommunenummer = kommune, Gaardsnummer = 1, Bruksnummer = 2, Seksjonsnummer = seksjon }]
+        Ean = "709999900000000017", Prosjektnavn = navn, System = "Test",
+        Eiendom = [new() { Eiendomsidentifikasjon = new(kommune, 1, 2, 0, seksjon) }]
     };
 
     [Fact]
@@ -20,7 +20,7 @@ public sealed class FtbidDublettTester
         var treff = _service.Finn(Ny("  TILBYGG   Solsiden skole "), [Ny()]);
         Assert.NotNull(treff);
         Assert.False(treff.Sannsynlig);
-        Assert.Contains("Matrikkelopplysninger", treff.SamsvarendeFelter);
+        Assert.Contains("Eiendomsidentifikasjon", treff.SamsvarendeFelter);
     }
 
     [Theory]
@@ -34,7 +34,7 @@ public sealed class FtbidDublettTester
         if (felt == "referanse") { ny.EksternProsjektreferanse = "ref-1"; gammel.EksternProsjektreferanse = "REF-1"; }
         if (felt == "prosjektnummer") { ny.Prosjektnummer = "ref-1"; gammel.Prosjektnummer = "REF-1"; }
         Assert.False(_service.Finn(ny, [gammel])!.Sannsynlig);
-        gammel.Kommunenummer = "5001"; gammel.Matrikkelopplysninger[0].Kommunenummer = "5001";
+        gammel.Eiendom[0].Eiendomsidentifikasjon = gammel.Eiendom[0].Eiendomsidentifikasjon with { Kommunenummer = "5001" };
         Assert.Null(_service.Finn(ny, [gammel]));
     }
 
@@ -52,7 +52,7 @@ public sealed class FtbidDublettTester
     {
         var ny = Ny(); var gammel = Ny(seksjon: 1);
         Assert.Null(_service.Finn(ny, [gammel]));
-        gammel.Matrikkelopplysninger.Add(ny.Matrikkelopplysninger[0]);
+        gammel.Eiendom.Add(ny.Eiendom[0]);
         Assert.False(_service.Finn(ny, [gammel])!.Sannsynlig);
     }
 
@@ -68,8 +68,8 @@ public sealed class FtbidDublettTester
     public void AdresseOgNavnGirSannsynligDublett()
     {
         var ny = Ny(); var gammel = Ny(seksjon: 1);
-        ny.Adresser = [new() { Adressetekst = "  Storgata  1 " }];
-        gammel.Adresser = [new() { Adressetekst = "STORGATA 1" }];
+        ny.Eiendom[0].Adresse = [new() { Adresselinje1 = "  Storgata  1 " }];
+        gammel.Eiendom[0].Adresse = [new() { Adresselinje1 = "STORGATA 1" }];
         Assert.True(_service.Finn(ny, [gammel])!.Sannsynlig);
         gammel.Prosjektnavn = "Riving garasje";
         Assert.Null(_service.Finn(ny, [gammel]));
@@ -93,7 +93,7 @@ public sealed class FtbidDublettTester
     public void BygningOgNavnGirSannsynligDublett()
     {
         var ny = Ny(); var gammel = Ny(seksjon: 1);
-        ny.Bygningsnummer = gammel.Bygningsnummer = "12345";
+        ny.Eiendom[0].Bygningsnummer = gammel.Eiendom[0].Bygningsnummer = "12345";
         Assert.True(_service.Finn(ny, [gammel])!.Sannsynlig);
     }
 

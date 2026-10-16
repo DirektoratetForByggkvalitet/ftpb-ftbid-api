@@ -21,7 +21,6 @@ public sealed class FtbidDbContext(DbContextOptions<FtbidDbContext> alternativer
         ftbid.ToTable("ftbid");
         ftbid.HasKey(f => f.Ean);
         ftbid.Property(f => f.Ean).HasMaxLength(18);
-        ftbid.Property(f => f.Kommunenummer).HasMaxLength(4);
         ftbid.Property(f => f.Prosjektnavn).HasMaxLength(500);
         ftbid.Property(f => f.NormalisertProsjektnavn).HasMaxLength(500);
         ftbid.Property(f => f.Prosjektnummer).HasMaxLength(200);
@@ -30,27 +29,37 @@ public sealed class FtbidDbContext(DbContextOptions<FtbidDbContext> alternativer
         ftbid.Property(f => f.Tiltakshaver).HasMaxLength(500);
         ftbid.Property(f => f.Organisasjonsnummer).HasMaxLength(9);
         ftbid.Property(f => f.AnsvarligSokerOrganisasjonsnummer).HasMaxLength(9);
-        ftbid.Property(f => f.Bruksenhetsnummer).HasMaxLength(50);
-        ftbid.Property(f => f.Bygningsnummer).HasMaxLength(50);
         ftbid.Property(f => f.Tiltakstype).HasMaxLength(200);
-        ftbid.HasIndex(f => f.Kommunenummer);
         ftbid.Property(f => f.System).HasMaxLength(200);
-        ftbid.Property(f => f.Adresse).HasMaxLength(1000);
-        ftbid.HasIndex(f => new { f.Kommunenummer, f.Gaardsnummer, f.Bruksnummer, f.Festenummer, f.Seksjonsnummer, f.NormalisertProsjektnavn }).IsUnique().HasDatabaseName("IX_ftbid_prosjektidentitet");
-        ftbid.HasMany(f => f.Adresser).WithOne().HasForeignKey(a => a.Ftbid).OnDelete(DeleteBehavior.Cascade);
-        ftbid.HasMany(f => f.Matrikkelopplysninger).WithOne().HasForeignKey(m => m.Ftbid).OnDelete(DeleteBehavior.Cascade);
         ftbid.HasMany(f => f.Identifikasjonsmetadata).WithOne().HasForeignKey(m => m.Ftbid).OnDelete(DeleteBehavior.Restrict);
-        var adresse = modell.Entity<Adresse>();
-        adresse.ToTable("adresse");
+        ftbid.HasMany(f => f.Eiendom).WithOne().HasForeignKey(e => e.Ftbid).OnDelete(DeleteBehavior.Cascade);
+        var eiendom = modell.Entity<Eiendom>();
+        eiendom.ToTable("eiendom");
+        eiendom.HasKey(e => e.Id);
+        eiendom.HasIndex(e => new { e.Ftbid, e.Rekkefolge }).IsUnique();
+        eiendom.Property(e => e.Bygningsnummer).HasMaxLength(50);
+        eiendom.Property(e => e.Bolignummer).HasMaxLength(50);
+        eiendom.Property(e => e.Kommunenavn).HasMaxLength(200);
+        eiendom.OwnsOne(e => e.Eiendomsidentifikasjon, ident =>
+        {
+            ident.Property(i => i.Kommunenummer).HasMaxLength(4);
+            ident.HasIndex(i => new { i.Kommunenummer, i.Gaardsnummer, i.Bruksnummer });
+        });
+        eiendom.Navigation(e => e.Eiendomsidentifikasjon).IsRequired();
+        eiendom.HasMany(e => e.Adresse).WithOne().HasForeignKey(a => a.EiendomId).OnDelete(DeleteBehavior.Cascade);
+        var adresse = modell.Entity<Eiendomsadresse>();
+        adresse.ToTable("eiendomsadresse");
         adresse.HasKey(a => a.Id);
-        adresse.Property(a => a.Adressetekst).HasMaxLength(1000);
-        adresse.HasIndex(a => new { a.Ftbid, a.Rekkefolge }).IsUnique();
-        var matrikkel = modell.Entity<Matrikkelopplysning>();
-        matrikkel.ToTable("matrikkelopplysning");
-        matrikkel.HasKey(m => m.Id);
-        matrikkel.Property(m => m.Kommunenummer).HasMaxLength(4);
-        matrikkel.HasIndex(m => new { m.Kommunenummer, m.Gaardsnummer, m.Bruksnummer });
-        matrikkel.HasIndex(m => new { m.Ftbid, m.Rekkefolge }).IsUnique();
+        adresse.HasIndex(a => new { a.EiendomId, a.Rekkefolge }).IsUnique();
+        adresse.Property(a => a.Adresselinje1).HasMaxLength(1000);
+        adresse.Property(a => a.Adresselinje2).HasMaxLength(1000);
+        adresse.Property(a => a.Adresselinje3).HasMaxLength(1000);
+        adresse.Property(a => a.Postnr).HasMaxLength(20);
+        adresse.Property(a => a.Poststed).HasMaxLength(200);
+        adresse.Property(a => a.Landkode).HasMaxLength(2);
+        adresse.Property(a => a.Gatenavn).HasMaxLength(500);
+        adresse.Property(a => a.Husnr).HasMaxLength(50);
+        adresse.Property(a => a.Bokstav).HasMaxLength(20);
         var identifikasjon = modell.Entity<Identifikasjonsmetadata>();
         identifikasjon.ToTable("identifikasjonsmetadata");
         identifikasjon.HasKey(m => m.Arkivreferanse);
@@ -72,6 +81,9 @@ public sealed class FtbidDbContext(DbContextOptions<FtbidDbContext> alternativer
         foreach (var entitet in modell.Model.GetEntityTypes())
             foreach (var egenskap in entitet.GetProperties())
                 egenskap.SetColumnName(TilSlangeform(egenskap.Name));
+        // Identifikasjonen deler tabell og primærnøkkel med eiendommen.
+        modell.Entity<Eiendom>().OwnsOne(e => e.Eiendomsidentifikasjon)
+            .Property<long>("EiendomId").HasColumnName("id");
     }
 
     private static string TilSlangeform(string tekst) => string.Concat(tekst.Select((tegn, i) =>

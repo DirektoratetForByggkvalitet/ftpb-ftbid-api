@@ -104,7 +104,9 @@ def lag_import(ftbidfil, loggfil, antall, fro):
 BEGIN;
 SET LOCAL standard_conforming_strings = on;
 SELECT pg_advisory_xact_lock(7099999);
-CREATE TEMP TABLE v1_ftbid ON COMMIT DROP AS SELECT ean, kommunenummer, gaardsnummer, bruksnummer, festenummer, seksjonsnummer, adresse, prosjektnavn, normalisert_prosjektnavn, prosjektnummer, system, utstedt FROM ftbid WITH NO DATA;
+CREATE TEMP TABLE v1_ftbid (ean varchar(18), kommunenummer varchar(4), gaardsnummer integer, bruksnummer integer,
+ festenummer integer, seksjonsnummer integer, adresse varchar(1000), prosjektnavn varchar(500),
+ normalisert_prosjektnavn varchar(500), prosjektnummer varchar(200), system varchar(200), utstedt timestamptz) ON COMMIT DROP;
 CREATE TEMP TABLE v1_kobling (arkivreferanse varchar(80), ftbid varchar(18)) ON COMMIT DROP;
 CREATE TEMP TABLE v1_adresse (ftbid varchar(18), rekkefolge integer, adressetekst varchar(1000)) ON COMMIT DROP;
 CREATE TEMP TABLE v1_matrikkel (ftbid varchar(18), rekkefolge integer, kommunenummer varchar(4), gaardsnummer integer,
@@ -117,31 +119,35 @@ CREATE TEMP TABLE v1_matrikkel (ftbid varchar(18), rekkefolge integer, kommunenu
     utdata.write("""
 DO $$ BEGIN
  IF EXISTS (SELECT 1 FROM ftbid f JOIN v1_ftbid v USING (ean)
-   WHERE ROW(f.kommunenummer,f.gaardsnummer,f.bruksnummer,f.festenummer,f.seksjonsnummer,f.adresse,f.prosjektnavn,
-     f.normalisert_prosjektnavn,f.prosjektnummer,f.system,f.utstedt)
-   IS DISTINCT FROM ROW(v.kommunenummer,v.gaardsnummer,v.bruksnummer,v.festenummer,v.seksjonsnummer,v.adresse,v.prosjektnavn,
-     v.normalisert_prosjektnavn,v.prosjektnummer,v.system,v.utstedt))
+   WHERE ROW(f.prosjektnavn,f.normalisert_prosjektnavn,f.prosjektnummer,f.system,f.utstedt)
+   IS DISTINCT FROM ROW(v.prosjektnavn,v.normalisert_prosjektnavn,v.prosjektnummer,v.system,v.utstedt))
  THEN RAISE EXCEPTION 'En eksisterende ftbid har andre verdier. Importen er avbrutt uten overskriving.'; END IF;
  IF EXISTS (SELECT 1 FROM identifikasjonsmetadata m JOIN v1_kobling v USING (arkivreferanse) WHERE m.ftbid <> v.ftbid)
  THEN RAISE EXCEPTION 'En arkivreferanse har en annen tilknytning. Importen er avbrutt.'; END IF;
- IF EXISTS (SELECT 1 FROM adresse a JOIN v1_adresse v USING (ftbid, rekkefolge) WHERE a.adressetekst <> v.adressetekst)
+ IF EXISTS (SELECT 1 FROM eiendomsadresse a JOIN eiendom e ON e.id = a.eiendom_id
+   JOIN v1_adresse v ON v.ftbid = e.ftbid AND v.rekkefolge = a.rekkefolge
+   WHERE e.rekkefolge = 0 AND (a.adresselinje1 IS DISTINCT FROM v.adressetekst OR
+     a.adresselinje2 IS NOT NULL OR a.adresselinje3 IS NOT NULL OR a.postnr IS NOT NULL OR
+     a.poststed IS NOT NULL OR a.landkode IS NOT NULL OR a.gatenavn IS NOT NULL OR a.husnr IS NOT NULL OR a.bokstav IS NOT NULL))
  THEN RAISE EXCEPTION 'En adresseposisjon inneholder andre verdier. Importen er avbrutt.'; END IF;
- IF EXISTS (SELECT 1 FROM matrikkelopplysning m JOIN v1_matrikkel v USING (ftbid, rekkefolge)
+ IF EXISTS (SELECT 1 FROM eiendom m JOIN v1_matrikkel v USING (ftbid, rekkefolge)
    WHERE ROW(m.kommunenummer,m.gaardsnummer,m.bruksnummer,m.festenummer,m.seksjonsnummer)
    IS DISTINCT FROM ROW(v.kommunenummer,v.gaardsnummer,v.bruksnummer,v.festenummer,v.seksjonsnummer))
  THEN RAISE EXCEPTION 'En matrikkelposisjon inneholder andre verdier. Importen er avbrutt.'; END IF;
 END $$;
-INSERT INTO ftbid (ean, kommunenummer, gaardsnummer, bruksnummer, festenummer, seksjonsnummer, adresse,
- prosjektnavn, normalisert_prosjektnavn, prosjektnummer, system, utstedt)
- SELECT * FROM v1_ftbid ON CONFLICT (ean) DO NOTHING;
+INSERT INTO ftbid (ean, prosjektnavn, normalisert_prosjektnavn, prosjektnummer, system, utstedt)
+ SELECT ean, prosjektnavn, normalisert_prosjektnavn, prosjektnummer, system, utstedt
+ FROM v1_ftbid ON CONFLICT (ean) DO NOTHING;
 INSERT INTO skjemametadata (arkivreferanse, skjematype, tiltakstyper)
  SELECT arkivreferanse, NULL, ARRAY[]::text[] FROM v1_kobling ON CONFLICT (arkivreferanse) DO NOTHING;
 INSERT INTO identifikasjonsmetadata (arkivreferanse, ftbid)
  SELECT * FROM v1_kobling ON CONFLICT (arkivreferanse) DO NOTHING;
-INSERT INTO adresse (ftbid, rekkefolge, adressetekst)
- SELECT * FROM v1_adresse ON CONFLICT (ftbid, rekkefolge) DO NOTHING;
-INSERT INTO matrikkelopplysning (ftbid, rekkefolge, kommunenummer, gaardsnummer, bruksnummer, festenummer, seksjonsnummer)
+INSERT INTO eiendom (ftbid, rekkefolge, kommunenummer, gaardsnummer, bruksnummer, festenummer, seksjonsnummer)
  SELECT * FROM v1_matrikkel ON CONFLICT (ftbid, rekkefolge) DO NOTHING;
+INSERT INTO eiendomsadresse (eiendom_id, rekkefolge, adresselinje1)
+ SELECT e.id, a.rekkefolge, a.adressetekst FROM v1_adresse a
+ JOIN eiendom e ON e.ftbid = a.ftbid AND e.rekkefolge = 0
+ ON CONFLICT (eiendom_id, rekkefolge) DO NOTHING;
 DO $$ BEGIN
  IF (SELECT count(*) FROM ftbid f JOIN v1_ftbid v USING (ean)) <> (SELECT count(*) FROM v1_ftbid)
  THEN RAISE EXCEPTION 'Importkontrollen av ftbid-er feilet.'; END IF;
@@ -153,8 +159,8 @@ SELECT setval('ftbid_sekvens', GREATEST((SELECT last_value FROM ftbid_sekvens),
 COMMIT;
 SELECT 'ftbid' AS tabell, count(*) AS antall FROM ftbid
 UNION ALL SELECT 'identifikasjonsmetadata', count(*) FROM identifikasjonsmetadata
-UNION ALL SELECT 'adresse', count(*) FROM adresse
-UNION ALL SELECT 'matrikkelopplysning', count(*) FROM matrikkelopplysning;
+UNION ALL SELECT 'eiendomsadresse', count(*) FROM eiendomsadresse
+UNION ALL SELECT 'eiendom', count(*) FROM eiendom;
 """)
     rapport = {"Ftbider": len(ftbider), "Koblinger": len(logger), "AdresserFraKilden": sum(bool(r[10].strip()) for r in ftbider),
                "Testprosjekter": antall, "Tilfeldighetsfro": fro, "Gs1Prefiks": next(iter(prefikser)),

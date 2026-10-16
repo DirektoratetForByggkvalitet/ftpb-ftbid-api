@@ -37,7 +37,6 @@ public sealed class MaskinportenFlaggTester(PostgresApiOppsett oppsett)
         }
         using var oppretting = await klient.PostAsJsonAsync("/api/ftbid", new OpprettFtbid
         {
-            Kommunenummer = "0301", Gaardsnummer = 10, Bruksnummer = 1,
             Prosjektnavn = "Flaggtest " + Guid.NewGuid().ToString("N"), System = "Testsystem"
         });
         Assert.Equal(aktivert ? HttpStatusCode.Unauthorized : HttpStatusCode.OK, oppretting.StatusCode);
