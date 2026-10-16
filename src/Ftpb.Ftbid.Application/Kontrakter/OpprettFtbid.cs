@@ -1,6 +1,3 @@
-using Ftpb.Ftbid.Domain.Prosjekter;
-using System.Text.Json.Serialization;
-
 namespace Ftpb.Ftbid.Application.Kontrakter;
 
 /// <summary>Opprettingsdata. JSON-feltnavnene er på norsk.</summary>
@@ -15,8 +12,6 @@ public sealed class OpprettFtbid
     public string? KommunaltSaksnummer { get; set; }
     public string? Tiltakshaver { get; set; }
     public string? Organisasjonsnummer { get; set; }
-    [JsonConverter(typeof(JsonStringEnumConverter<FtIdType>))]
-    public FtIdType FtIdType { get; set; } = FtIdType.Ftbid;
     public string? AnsvarligSokerOrganisasjonsnummer { get; set; }
     public string? Bruksenhetsnummer { get; set; }
     public string? Bygningsnummer { get; set; }

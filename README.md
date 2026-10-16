@@ -166,7 +166,6 @@ Ved bytte av hovedmatrikkel oppdateres også hovedfeltene og den unike prosjekti
 | Kriterium | Søkeparameter | Treffregel |
 | --- | --- | --- |
 | FtID (eksisterende Ftbid) | `ftid` | Eksakt full identifikator eller de siste åtte sifrene, utvidet med konfigurert GS1-prefiks |
-| FtIDType | `ftidtype` | Enum: `Ftbid` (eller `0`), foreløpig eneste verdi |
 | Prosjektnavn/tiltaksnavn | `prosjektnavn`, `tiltaksnavn` | Deltreff i samme prosjektnavn; begge filtre må treffe hvis begge oppgis |
 | Tiltakstype | `tiltakstype` | Eksakt prosjektverdi eller tiltakstype fra et tilknyttet skjema |
 | Ekstern prosjektreferanse | `eksternprosjektreferanse` | Eksakt; bruker eldre `Prosjektnr` som reserve når ekstern referanse mangler |
@@ -177,14 +176,14 @@ Ved bytte av hovedmatrikkel oppdateres også hovedfeltene og den unike prosjekti
 | Adresse | `adresse` | Deltreff i hovedadresse eller sekundæradresse |
 | Kommune og matrikkel | `kommunenummer`, `gaardsnummer`, `bruksnummer`, `festenummer`, `seksjonsnummer` | Eksakte verdier på **samme** hoved- eller sekundærmatrikkelenhet |
 
-Matrikkelnummer må være ikke-negative. Utelatt feste- eller seksjonsnummer avgrenser ikke søket; `0` søker uttrykkelig etter null. Kommunenummer alene er tillatt, må ha fire sifre og kontrolleres ikke mot dagens kommuneregister, slik at historiske data kan søkes. Ugyldige identifikatorer, enumverdier, organisasjonsnummer og tall gir 400 med ProblemDetails.
+Matrikkelnummer må være ikke-negative. Utelatt feste- eller seksjonsnummer avgrenser ikke søket; `0` søker uttrykkelig etter null. Kommunenummer alene er tillatt, må ha fire sifre og kontrolleres ikke mot dagens kommuneregister, slik at historiske data kan søkes. Ugyldige identifikatorer, organisasjonsnummer og tall gir 400 med ProblemDetails.
 
-Oppretting og oppslag inkluderer de nye feltene `FtIdType`, `AnsvarligSokerOrganisasjonsnummer` (ni sifre) og `Bruksenhetsnummer` (maksimalt 50 tegn). `FtIdType` serialiseres som `"Ftbid"` og er standardverdien når feltet utelates. Migrationen `UtvidSokefelter` setter eksisterende prosjekter til denne typen og lar de to nye tekstfeltene være null. Verdiene må registreres ved oppretting for å kunne gi treff; det eksisterende organisasjonsnummeret kopieres ikke til ansvarlig søker.
+Oppretting og oppslag inkluderer `AnsvarligSokerOrganisasjonsnummer` (ni sifre) og `Bruksenhetsnummer` (maksimalt 50 tegn). Verdiene må registreres ved oppretting for å kunne gi treff; det eksisterende organisasjonsnummeret kopieres ikke til ansvarlig søker. Migrationen `FjernFtIdType` fjerner den tidligere identifikatortypen fra databasen. Prosjekter har ikke et eget statusfelt; status i helsesvar og ProblemDetails beskriver tjenesten og HTTP-svaret.
 
 ```text
 GET /api/ftbid/sok?kommunenummer=0301&gaardsnummer=10
 GET /api/ftbid/sok?adresse=storgata&prosjektnavn=utvidelse
-GET /api/ftbid/sok?ftid=707338700000000014&ftidtype=Ftbid
+GET /api/ftbid/sok?ftid=707338700000000014
 GET /api/ftbid/sok?ansvarligsokerorganisasjonsnummer=123456789&bruksenhetsnummer=H0101
 GET /api/ftbid/sok?kommunenummer=0301&gaardsnummer=10&bruksnummer=1&festenummer=0&seksjonsnummer=2
 ```
@@ -228,7 +227,6 @@ Regler med samme betydning gjenbruker NIREGs kode. Ftbids egne regler har koder 
 | V0062 | ProsjektidentitetAlleredeIBrukException |
 | V0067 | FtbidDublettException (dublett) |
 | V0068 | FtbidDublettException (sannsynlig dublett) |
-| V0069 | UgyldigFtIdTypeException |
 | V0070 | UgyldigOrganisasjonsnummerException |
 
 HTTP-feilhåndteringen bruker ASP.NET Core `IExceptionHandler`, `UseExceptionHandler`, `AddProblemDetails`, `IProblemDetailsService` og `ProblemDetailsFactory`. `UseStatusCodePages` gir samme standardformat for tomme feilsvar, blant annet 401, 403, 404 og 429. Ugyldig JSON og modellbinding får også et problemobjekt med regelkode. Ingen egen håndskrevet HTTP-mellomvare brukes.

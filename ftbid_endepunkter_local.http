@@ -17,7 +17,6 @@ Content-Type: application/json
   "Bruksnummer": 1,
   "Prosjektnavn": "Lokalt eksempelprosjekt",
   "System": "Lokale HTTP-eksempler",
-  "FtIdType": "Ftbid",
   "AnsvarligSokerOrganisasjonsnummer": "123456789",
   "Bruksenhetsnummer": "H0101",
   "Adresser": ["Karl Johans gate 1", "Storgata 2"],
@@ -47,8 +46,8 @@ Content-Type: application/json
 GET {{adresse}}/api/ftbid/sok?adresse=storgata&prosjektnavn=Lokalt%20eksempelprosjekt
 Authorization: Bearer {{token}}
 
-### Søk med FtID og type
-GET {{adresse}}/api/ftbid/sok?ftid={{opprettet_ftbid}}&ftidtype=Ftbid
+### Søk med FtID
+GET {{adresse}}/api/ftbid/sok?ftid={{opprettet_ftbid}}
 Authorization: Bearer {{token}}
 
 ### Søk med ansvarlig søker, bruksenhet og tiltaksnavn

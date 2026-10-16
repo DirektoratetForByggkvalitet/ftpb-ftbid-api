@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Ftpb.Ftbid.Application.Kontrakter;
-using Ftpb.Ftbid.Domain.Prosjekter;
 using Ftpb.Ftbid.Tests.Oppsett;
 using Xunit;
 
@@ -33,13 +32,12 @@ public sealed class UtvidetSokTester(PostgresApiOppsett oppsett)
         Assert.Equal(HttpStatusCode.OK, opprettet.StatusCode);
         var ftbid = (await opprettet.Content.ReadFromJsonAsync<string>())!;
         var hentet = Assert.Single((await klient.GetFromJsonAsync<List<FtbidResultat>>("/api/ftbid/" + ftbid))!);
-        Assert.Equal(FtIdType.Ftbid, hentet.FtIdType);
         Assert.Equal(prosjekt.Bruksenhetsnummer, hentet.Bruksenhetsnummer);
         Assert.Equal(prosjekt.AnsvarligSokerOrganisasjonsnummer, hentet.AnsvarligSokerOrganisasjonsnummer);
         Assert.Equal(prosjekt.Organisasjonsnummer, hentet.Organisasjonsnummer);
         var filtre = new Dictionary<string, string>
         {
-            ["ftid"] = ftbid, ["ftidtype"] = "Ftbid", ["prosjektnavn"] = prosjekt.Prosjektnavn!,
+            ["ftid"] = ftbid, ["prosjektnavn"] = prosjekt.Prosjektnavn!,
             ["tiltaksnavn"] = prosjekt.Prosjektnavn!, ["tiltakstype"] = prosjekt.Tiltakstype!,
             ["eksternprosjektreferanse"] = prosjekt.EksternProsjektreferanse!,
             ["kommunaltsaksnummer"] = prosjekt.KommunaltSaksnummer!,
@@ -112,8 +110,6 @@ public sealed class UtvidetSokTester(PostgresApiOppsett oppsett)
     [InlineData("festenummer=-1")]
     [InlineData("seksjonsnummer=-1")]
     [InlineData("ftid=ugyldig")]
-    [InlineData("ftidtype=99")]
-    [InlineData("ftidtype=ukjent")]
     [InlineData("kommunenummer=abc")]
     [InlineData("ansvarligsokerorganisasjonsnummer=123")]
     [InlineData("ansvarligsokerorganisasjonsnummer=12345678a")]
@@ -129,25 +125,23 @@ public sealed class UtvidetSokTester(PostgresApiOppsett oppsett)
     [Theory]
     [InlineData("organisasjonsnummer")]
     [InlineData("bruksenhetsnummer")]
-    [InlineData("ftidtype")]
     public async Task UgyldigeNyeOpprettingsfelterAvvises(string felt)
     {
         using var klient = oppsett.Klient();
         var prosjekt = NyttProsjekt();
         if (felt == "organisasjonsnummer") prosjekt.AnsvarligSokerOrganisasjonsnummer = "12345678x";
         if (felt == "bruksenhetsnummer") prosjekt.Bruksenhetsnummer = new string('H', 51);
-        if (felt == "ftidtype") prosjekt.FtIdType = (FtIdType)99;
         Assert.Equal(HttpStatusCode.BadRequest, (await klient.PostAsJsonAsync("/api/ftbid", prosjekt)).StatusCode);
     }
 
     [Fact]
-    public async Task OpenApiBeskriverAlleSokefiltreOgEnum()
+    public async Task OpenApiBeskriverAlleSokefiltre()
     {
         using var klient = oppsett.Klient();
         using var dokument = JsonDocument.Parse(await klient.GetStringAsync("/openapi/v1.json"));
         var parametere = dokument.RootElement.GetProperty("paths").GetProperty("/api/ftbid/sok")
             .GetProperty("get").GetProperty("parameters").EnumerateArray().Select(p => p.GetProperty("name").GetString()).ToList();
-        foreach (var felt in new[] { "ftid", "ftidtype", "prosjektnavn", "tiltaksnavn", "tiltakstype", "eksternprosjektreferanse",
+        foreach (var felt in new[] { "ftid", "prosjektnavn", "tiltaksnavn", "tiltakstype", "eksternprosjektreferanse",
             "kommunaltsaksnummer", "ansvarligsokerorganisasjonsnummer", "bygningsnummer", "bruksenhetsnummer", "adresse",
             "kommunenummer", "gaardsnummer", "bruksnummer", "festenummer", "seksjonsnummer" })
             Assert.Contains(felt, parametere);

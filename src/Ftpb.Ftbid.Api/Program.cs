@@ -1,5 +1,4 @@
 using System;
-using Ftpb.Ftbid.Domain.Prosjekter;
 using Ftpb.Ftbid.Api.Konfigurasjon;
 using Ftpb.Ftbid.Api.Feilhandtering;
 using Ftpb.Ftbid.Api.Helse;
@@ -25,7 +24,6 @@ var maskinportenAktivert = bygger.Configuration.GetValue("Maskinporten:Aktivert"
 bygger.Services.LeggTilFtbidServices(bygger.Configuration, bygger.Environment);
 bygger.Services.AddControllers().AddJsonOptions(valg =>
 {
-    valg.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter<FtIdType>());
     valg.JsonSerializerOptions.PropertyNamingPolicy = null;
     valg.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
 });
@@ -43,7 +41,6 @@ bygger.Services.Configure<ApiBehaviorOptions>(valg => valg.InvalidModelStateResp
 });
 bygger.Services.ConfigureHttpJsonOptions(valg =>
 {
-    valg.SerializerOptions.Converters.Add(new JsonStringEnumConverter<FtIdType>());
     valg.SerializerOptions.PropertyNamingPolicy = null;
     valg.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
 });

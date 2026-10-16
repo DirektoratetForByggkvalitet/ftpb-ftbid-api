@@ -98,10 +98,6 @@ namespace Ftpb.Ftbid.Infrastructure.Migrasjoner
                         .HasColumnType("integer")
                         .HasColumnName("festenummer");
 
-                    b.Property<int>("FtIdType")
-                        .HasColumnType("integer")
-                        .HasColumnName("ft_id_type");
-
                     b.Property<int>("Gaardsnummer")
                         .HasColumnType("integer")
                         .HasColumnName("gaardsnummer");

@@ -78,8 +78,6 @@ public sealed class PostgresFtbidLager(FtbidDbContext database, IFtbidDublettSer
         }
         if (!string.IsNullOrWhiteSpace(filter.Ftbid))
             sporring = sporring.Where(f => f.Ean == filter.Ftbid);
-        if (filter.FtIdType.HasValue)
-            sporring = sporring.Where(f => f.FtIdType == filter.FtIdType);
         if (!string.IsNullOrWhiteSpace(filter.Tiltaksnavn))
         {
             var navn = filter.Tiltaksnavn.Trim().ToLowerInvariant();

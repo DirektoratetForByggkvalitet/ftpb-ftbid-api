@@ -23,11 +23,10 @@ public sealed class FtbidOppslagService(IFtbidLager lager, FtbidInnstillinger in
             filter.Tiltaksnavn, filter.Tiltakstype, filter.EksternProsjektreferanse, filter.KommunaltSaksnummer,
             filter.AnsvarligSokerOrganisasjonsnummer, filter.Bygningsnummer, filter.Bruksenhetsnummer };
         if (tekstfiltre.All(string.IsNullOrWhiteSpace) && filter.Gaardsnummer is null &&
-            filter.Bruksnummer is null && filter.Festenummer is null && filter.Seksjonsnummer is null && filter.FtIdType is null)
+            filter.Bruksnummer is null && filter.Festenummer is null && filter.Seksjonsnummer is null)
             throw new SøkeparameterManglerException();
         if (filter.Gaardsnummer < 0 || filter.Bruksnummer < 0 || filter.Festenummer < 0 || filter.Seksjonsnummer < 0)
             throw new UgyldigSøkenummerException();
-        if (filter.FtIdType is { } type && !Enum.IsDefined(type)) throw new UgyldigFtIdTypeException();
         var kommune = string.IsNullOrWhiteSpace(filter.Kommunenummer) ? null : filter.Kommunenummer.Trim();
         if (kommune is not null && (kommune.Length != 4 || !kommune.All(char.IsAsciiDigit)))
             throw new UgyldigKommunenummerException(kommune);
@@ -49,7 +48,7 @@ public sealed class FtbidOppslagService(IFtbidLager lager, FtbidInnstillinger in
             EksternProsjektreferanse = prosjekt.EksternProsjektreferanse, KommunaltSaksnummer = prosjekt.KommunaltSaksnummer,
             Tiltakshaver = prosjekt.Tiltakshaver, Organisasjonsnummer = prosjekt.Organisasjonsnummer,
             Bygningsnummer = prosjekt.Bygningsnummer, Tiltakstype = prosjekt.Tiltakstype,
-            FtIdType = prosjekt.FtIdType, AnsvarligSokerOrganisasjonsnummer = prosjekt.AnsvarligSokerOrganisasjonsnummer,
+            AnsvarligSokerOrganisasjonsnummer = prosjekt.AnsvarligSokerOrganisasjonsnummer,
             Bruksenhetsnummer = prosjekt.Bruksenhetsnummer,
             Matrikkelopplysninger = matrikler.Select(m => new Matrikkeldata(m.Kommunenummer, m.Gaardsnummer, m.Bruksnummer, m.Festenummer, m.Seksjonsnummer)).ToList(),
             TilknyttedeSkjemaer = prosjekt.Identifikasjonsmetadata.OrderBy(m => m.Arkivreferanse)

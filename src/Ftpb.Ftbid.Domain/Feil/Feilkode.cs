@@ -49,8 +49,6 @@ public enum Feilkode
     V0067 = 25, // V0063–V0066 er utgått; behold eksisterende enumverdier.
     /// <summary>Prosjektopplysningene tyder på en sannsynlig dublett.</summary>
     V0068,
-    /// <summary>Identifikatortypen støttes ikke.</summary>
-    V0069,
     /// <summary>Ansvarlig søkers organisasjonsnummer har ugyldig format.</summary>
-    V0070,
+    V0070 = 28, // V0069 er utgått; behold eksisterende enumverdi.
 }
