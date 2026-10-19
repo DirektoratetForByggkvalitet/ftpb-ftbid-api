@@ -18,7 +18,7 @@ public sealed class FtbidOpprettingService(IFtbidLager lager, IKommuneregister k
         var ansvarligSoker = NormaliserAnsvarligSoker(foresporsel.AnsvarligSokerOrganisasjonsnummer);
         var navn = KrevTekst(foresporsel.Prosjektnavn, "Prosjektnavn", 500);
         var system = KrevTekst(foresporsel.System, "System", 200);
-        if (foresporsel.Eiendom is null) throw new PåkrevdVerdiManglerException("Eiendom");
+        if (foresporsel.Eiendom is null || foresporsel.Eiendom.Count == 0) throw new PåkrevdVerdiManglerException("Eiendom");
         if (foresporsel.Eiendom.Count > 100) throw new ForMangeVerdierException("Eiendom", 100);
         var eiendommer = new List<Eiendom>();
         foreach (var data in foresporsel.Eiendom)
@@ -30,13 +30,13 @@ public sealed class FtbidOpprettingService(IFtbidLager lager, IKommuneregister k
         var prosjekt = new FtbidEntitet
         {
             Prosjektnavn = navn, NormalisertProsjektnavn = navn.ToLowerInvariant(), System = system,
-            Prosjektnummer = string.IsNullOrWhiteSpace(foresporsel.Prosjektnr) ? null : KrevTekst(foresporsel.Prosjektnr, "Prosjektnummer", 200),
+            Prosjektnummer = KrevTekst(foresporsel.Prosjektnr, "Prosjektnummer", 200),
             EksternProsjektreferanse = ValgfriTekst(foresporsel.EksternProsjektreferanse, "Ekstern prosjektreferanse", 200),
             KommunaltSaksnummer = ValgfriTekst(foresporsel.KommunaltSaksnummer, "Kommunalt saksnummer", 200),
             Tiltakshaver = ValgfriTekst(foresporsel.Tiltakshaver, "Tiltakshaver", 500),
             Organisasjonsnummer = ValgfriTekst(foresporsel.Organisasjonsnummer, "Organisasjonsnummer", 9),
             AnsvarligSokerOrganisasjonsnummer = ansvarligSoker,
-            Tiltakstype = ValgfriTekst(foresporsel.Tiltakstype, "Tiltakstype", 200),
+            Tiltakstype = KrevTekst(foresporsel.Tiltakstype, "Tiltakstype", 200),
             Utstedt = DateTimeOffset.UtcNow, Eiendom = eiendommer
         };
         return await lager.OpprettAsync(prosjekt, innstillinger.Gs1Prefiks, avbrudd);

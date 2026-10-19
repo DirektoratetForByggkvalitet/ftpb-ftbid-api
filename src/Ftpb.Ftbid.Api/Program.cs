@@ -52,7 +52,7 @@ bygger.Services.AddProblemDetails(valg => valg.CustomizeProblemDetails = konteks
     kontekst.ProblemDetails.Title = kontekst.ProblemDetails.Status switch
     {
         400 => "Ugyldig forespørsel", 401 => "Autentisering kreves", 403 => "Tilgang nektet",
-        404 => "Endepunktet finnes ikke", 405 => "HTTP-metoden er ikke tillatt", 429 => "For mange forespørsler",
+        404 => kontekst.ProblemDetails.Detail is null ? "Endepunktet finnes ikke" : kontekst.ProblemDetails.Title, 405 => "HTTP-metoden er ikke tillatt", 429 => "For mange forespørsler",
         >= 500 => "Intern serverfeil", _ => kontekst.ProblemDetails.Title
     };
 });

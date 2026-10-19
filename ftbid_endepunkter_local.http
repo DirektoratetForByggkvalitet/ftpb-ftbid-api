@@ -5,7 +5,7 @@
 @adresse = http://localhost:5080
 @token = eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL3Rlc3QubWFza2lucG9ydGVuLm5vLyIsImNvbnN1bWVyIjp7IklEIjoiMDE5Mjo5OTk4ODg3NzcifSwic2NvcGUiOiJkaWJrOmJ5Z2cvZnRiaWQubGVzIGRpYms6YnlnZy9mdGJpZC5lbmRyZSIsImV4cCI6MH0.a3VuLWxva2FsdC1la3NlbXBlbA
 
-### Opprett prosjekt med strukturerte eiendommer (Eiendom kan også være [])
+### Opprett prosjekt med strukturerte eiendommer (minst én eiendom kreves)
 POST {{adresse}}/api/ftbid
 Authorization: Bearer {{token}}
 Content-Type: application/json
@@ -13,6 +13,7 @@ Content-Type: application/json
 {
   "Prosjektnavn": "Utvidelse av bygget",
   "Prosjektnr": "P-1001",
+  "Tiltakstype": "Tilbygg",
   "System": "Søknadssystem",
   "Eiendom": [
     {

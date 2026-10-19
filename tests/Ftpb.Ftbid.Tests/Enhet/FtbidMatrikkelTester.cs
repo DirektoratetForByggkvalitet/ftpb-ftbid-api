@@ -24,15 +24,14 @@ public sealed class FtbidMatrikkelTester
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task EiendomKanUtelatesEllerVaereTom(bool eksplisitt)
+    public async Task EiendomKanIkkeUtelatesEllerVaereTom(bool eksplisitt)
     {
         var lager = new TestLager();
-        var prosjekt = new OpprettFtbid { Prosjektnavn = "Uten eiendom", System = "Test" };
+        var prosjekt = new OpprettFtbid { Prosjektnavn = "Uten eiendom", System = "Test", Prosjektnr = "P-1", Tiltakstype = "Tilbygg" };
         if (eksplisitt) prosjekt.Eiendom = [];
-        Assert.Equal(Ftbid, await new FtbidOpprettingService(lager, new Kommuneregister(), new()).OpprettAsync(prosjekt));
-        Assert.Empty(lager.Opprettet!.Eiendom);
-        var resultat = Assert.Single(await new FtbidOppslagService(lager, new()).HentAsync(Ftbid));
-        Assert.Empty(resultat.Eiendom);
+        await Assert.ThrowsAsync<PåkrevdVerdiManglerException>(() =>
+            new FtbidOpprettingService(lager, new Kommuneregister(), new()).OpprettAsync(prosjekt));
+        Assert.Null(lager.Opprettet);
     }
 
     [Fact]
@@ -43,7 +42,7 @@ public sealed class FtbidMatrikkelTester
         andre.Eiendomsidentifikasjon = new("0301", 9_999_999, 88, 3, 4);
         andre.Adresse = [new("Annen adresse"), new("Adresse nummer to")];
         andre.Bygningsnummer = "000123";
-        var prosjekt = new OpprettFtbid { Prosjektnavn = "Test", System = "Test", Eiendom = [Eiendom(), andre] };
+        var prosjekt = new OpprettFtbid { Prosjektnavn = "Test", System = "Test", Prosjektnr = "P-1001", Tiltakstype = "Tilbygg", Eiendom = [Eiendom(), andre] };
         await new FtbidOpprettingService(lager, new Kommuneregister(), new()).OpprettAsync(prosjekt);
         lager.Opprettet!.Ean = Ftbid;
         var resultat = Assert.Single(await new FtbidOppslagService(lager, new()).HentAsync(Ftbid));
@@ -116,7 +115,7 @@ public sealed class FtbidMatrikkelTester
     {
         var lager = new TestLager(); var andre = Eiendom(); andre.Eiendomsidentifikasjon = new("0301", -1, 1);
         await Assert.ThrowsAsync<UgyldigeMatrikkelopplysningerException>(() => new FtbidOpprettingService(lager, new Kommuneregister(), new())
-            .OpprettAsync(new() { Prosjektnavn = "Test", System = "Test", Eiendom = [Eiendom(), andre] }));
+            .OpprettAsync(new() { Prosjektnavn = "Test", System = "Test", Prosjektnr = "P-1001", Tiltakstype = "Tilbygg", Eiendom = [Eiendom(), andre] }));
         Assert.Null(lager.Opprettet);
     }
 

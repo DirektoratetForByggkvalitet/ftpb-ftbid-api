@@ -67,7 +67,7 @@ Hver modell og kontrakt ligger i en egen fil. Mappene og navnerommene beskriver 
 | Infrastructure | `Persistens/Lagre`, `Referansedata`, `Migrasjoner` |
 | Tests | `Enhet`, `Integrasjon`, `Oppsett` |
 
-`FtbidOpprettingService` validerer prosjektdata og oppretter en identifikator. `FtbidDublettService` vurderer dubletter og sannsynlige dubletter før lagring, under PostgreSQL-transaksjonslåsen. `FtbidOppslagService` håndterer søk, oppslag og resultatmodeller. `FtbidTilknytningService` håndterer arkivreferanser. `FtbidEiendomService` validerer tillegg og sletting av adresser og matrikkelenheter, med atomisk lagring gjennom `IFtbidEiendomslager` og `PostgresFtbidEiendomslager`. Servicene har egne grensesnitt som kontrolleren får gjennom avhengighetsinjeksjon.
+`FtbidOpprettingService` validerer prosjektdata og oppretter en identifikator. `FtbidDublettService` kontrollerer den samlede dublettnøkkelen før lagring, under PostgreSQL-transaksjonslåsen. `FtbidOppslagService` håndterer søk, oppslag og resultatmodeller. `FtbidTilknytningService` håndterer arkivreferanser. `FtbidEiendomService` validerer tillegg og sletting av adresser og matrikkelenheter, med atomisk lagring gjennom `IFtbidEiendomslager` og `PostgresFtbidEiendomslager`. Servicene har egne grensesnitt som kontrolleren får gjennom avhengighetsinjeksjon.
 
 `IFtbidLager` samler PostgreSQL-operasjonene for prosjektet og dets tilknytninger. Opprettingens transaksjon, sekvenstildeling og duplikatbeskyttelse ligger samlet i `PostgresFtbidLager`. Kommuneoppslag har en egen kontrakt, `IKommuneregister`, og implementeres av `PostgresKommuneregister`. `IReferansedataImportService` brukes av importkommandoen og implementeres i Infrastructure, med atomisk oppdatering av kommuner og skjemaer.
 
@@ -79,7 +79,7 @@ Felles tekstvalidering og normalisering er interne hjelpefunksjoner i Applicatio
 | --- | --- | --- | --- |
 | POST | `/api/ftbid` | `dibk:bygg/ftbid.endre` | 200 med ftbid som JSON-streng; 409 ved dublett |
 | POST | `/api/ftbid/tilknytt` | `dibk:bygg/ftbid.endre` | 204 |
-| GET | `/api/ftbid/sok` | `dibk:bygg/ftbid.les` | 200 med liste av prosjekter og metadata |
+| GET | `/api/ftbid/sok` | `dibk:bygg/ftbid.les` | 200 med liste av prosjekter og metadata; 404 uten treff |
 | GET | `/api/ftbid/{ftbid}` | `dibk:bygg/ftbid.les` | 200 med liste, tom ved ukjent ftbid |
 | POST | `/api/ftbid/{ftbid}/eiendom` | `dibk:bygg/ftbid.endre` | 204 |
 | PUT | `/api/ftbid/{ftbid}/eiendom/{eiendomId}` | `dibk:bygg/ftbid.endre` | 204 |
@@ -89,12 +89,13 @@ API-ruter og JSON-feltnavn er på norsk. Tilknytning bruker `Ftbid` og `Arkivref
 
 ### Eiendomsmodell og oppretting
 
-En ftbid har `Eiendom` som en liste med **0 til 100 eiendommer**. Utelatt liste blir tom; `Eiendom: []` er gyldig. Hver eiendom inneholder ett `Eiendomsidentifikasjon`-objekt, en `Adresse`-liste med 0 til 100 adresseobjekter, og valgfrie `Bygningsnummer`, `Bolignummer` og `Kommunenavn`. Rekkefølgen bevares. Eiendomsopplysninger har ingen eksterne registeroppslag.
+Ved oppretting må `Eiendom` inneholde **1 til 100 eiendommer**. Eksisterende prosjekter kan ha en tom liste, og siste eiendom kan fortsatt slettes. Hver eiendom inneholder ett `Eiendomsidentifikasjon`-objekt, en `Adresse`-liste med 0 til 100 adresseobjekter, og valgfrie `Bygningsnummer`, `Bolignummer` og `Kommunenavn`. Rekkefølgen bevares. Eiendomsopplysninger har ingen eksterne registeroppslag.
 
 ```json
 {
   "Prosjektnavn": "Utvidelse av bygget",
   "Prosjektnr": "P-1001",
+  "Tiltakstype": "Tilbygg",
   "System": "Søknadssystem",
   "Eiendom": [
     {
@@ -134,14 +135,11 @@ Dette erstatter de tidligere flate `Adresser`, `Matrikkelopplysninger`, adresse-
 
 Prosjektet støtter `EksternProsjektreferanse` (200 tegn), `KommunaltSaksnummer` (200), `Tiltakshaver` (500), `Organisasjonsnummer` (9), `AnsvarligSokerOrganisasjonsnummer` (ni sifre) og `Tiltakstype` (200). `Prosjektnavn` er også tiltaksnavn; `Prosjektnr` brukes som reserve for ekstern referanse.
 
-Dublettkontrollen krever minst én felles kommune og bruker følgende regler:
+Dublettkontrollen bruker kun kombinasjonen av `Prosjektnavn`, `Prosjektnr` (prosjektnummer), `Tiltakstype` og matrikkelens `Kommunenummer`, `Gaardsnummer` og `Bruksnummer`. Alle tre tekstfeltene er påkrevd og kan ikke være null, tomme eller bare mellomrom. `Eiendom` må inneholde minst én eiendom med alle tre matrikkelfeltene. Gårds- og bruksnummer må oppgis som ikke-negative heltall; manglende eller null verdier avvises med 400.
 
-- **Dublett (`V0067`)**: samme kommunale saksnummer i en felles kommune, samme eksterne referanse i samme system og en felles kommune, eller samme normaliserte prosjektnavn og minst én felles fullstendig matrikkelenhet. Feste- og seksjonsnummer inngår; alle eiendommer kontrolleres.
-- **Sannsynlig dublett (`V0068`)**: stedstreff på full matrikkel, adresse eller bygningsnummer, sammen med samme eller nesten samme prosjektnavn. Et navn på minst ti tegn anses som nesten likt ved høyst 10 % redigeringsavstand; siffersekvensen må være identisk for å skille ulike byggetrinn. Stedstreff sammen med minst to av tiltakshaver/organisasjonsnummer, bygningsnummer og tiltakstype gir også et sannsynlig treff. Tiltakshaver og organisasjonsnummer teller samlet som ett signal.
+Alle fire opplysninger må samsvare. Ved flere eiendommer er ett felles matrikkelnummer tilstrekkelig, og kommune, gård og bruk må treffe samme eiendom. Feste- og seksjonsnummer inngår ikke i dublettnøkkelen. Tekst sammenlignes uten hensyn til store/små bokstaver og med normaliserte mellomrom og Unicode. Andre felter og lignende navn gir ikke dublett. Ved flere treff returneres ftbid i stigende rekkefølge.
 
-Tekst sammenlignes uten hensyn til store/små bokstaver og med normaliserte mellomrom og Unicode. Tomme verdier gir aldri treff. Kommune, adresse, tiltakshaver eller tiltakstype alene blokkerer ikke oppretting. Regler for sannsynlige dubletter er heuristikker, ikke statistiske sannsynligheter. Ved flere treff prioriteres dubletter foran sannsynlige dubletter, deretter flest samsvarende felter og ftbid i stigende rekkefølge.
-
-Begge typer treff avviser opprettingen med **409 Conflict**, `Location: /api/ftbid/{eksisterendeFtbid}` og ProblemDetails. Svaret inneholder `ftbidFeil.Kode`, `eksisterendeFtbid`, `sannsynligDublett` og `samsvarendeFelter`, slik at klienten kan forklare treffet og hente prosjektet. `Location` inkluderer eventuell `PathBase`. Eksisterende prosjekt endres ikke; prosjektnummer etterfylles ikke lenger. Dette endrer kontrakten for gjentatt oppretting fra 200 til 409. Samtidige opprettinger beskyttes av den eksisterende PostgreSQL-transaksjonslåsen på tvers av serviceinstanser, også ved endring av eiendommer. Den tidligere indeksen på hovedmatrikkel er fjernet sammen med de flate hovedfeltene. Prosjekter uten eiendommer gir ingen stedbaserte dublettreff.
+En dublett avvises med **409 Conflict** og ProblemDetails med `ftbidFeil.Kode = V0067`, en beskrivende feilmelding, `eksisterendeFtbid` og `samsvarendeFelter`. Svaret har ingen `Location`-header. Eksisterende prosjekt endres ikke. Samtidige opprettinger beskyttes av PostgreSQL-transaksjonslåsen på tvers av serviceinstanser.
 
 
 EAN-formatet er sju sifre GS1-prefiks, tre reserverte nuller, sju sifre PostgreSQL-sekvens og ett kontrollsiffer. Grunnkonfigurasjonen beholder adapterens eksempelprefiks `7099999`. Lokal utvikling bruker `7073387`, som samsvarer med det importerte v1-uttrekket. Prefikset kan endres med `Ftbid__Gs1Prefiks`; bruk samme prefiks som datagrunnlaget for kortoppslag. Sekvensen kan ikke gå rundt og gjenbruke identifikatorer.
@@ -193,7 +191,7 @@ GET /api/ftbid/sok?ansvarligsokerorganisasjonsnummer=123456789&bolignummer=H0101
 GET /api/ftbid/sok?kommunenummer=0301&gaardsnummer=10&bruksnummer=1&festenummer=0&seksjonsnummer=2
 ```
 
-Dubletter gir 409 med Location og ProblemDetails. Valideringsfeil gir 400 med standard ProblemDetails og norsk feilmelding. Uventede interne feil gir 500 med ProblemDetails, en generell norsk feilmelding og sporingsidentifikator. Dette forbedrer adapterens oppførsel, som også returnerte 400 for interne feil. Manglende eller ugyldig token gir 401; utilstrekkelige scopes gir 403. Oppretting begrenses til 200 forespørsler per minutt per konsument og API-instans, med 429 ved overskridelse.
+Dubletter gir 409 med eksisterende ftbid i ProblemDetails, uten Location-header. Søk uten treff gir 404 med kode `V0072`. Valideringsfeil gir 400 med standard ProblemDetails og norsk feilmelding. Uventede interne feil gir 500 med ProblemDetails, en generell norsk feilmelding og sporingsidentifikator. Dette forbedrer adapterens oppførsel, som også returnerte 400 for interne feil. Manglende eller ugyldig token gir 401; utilstrekkelige scopes gir 403. Oppretting begrenses til 200 forespørsler per minutt per konsument og API-instans, med 429 ved overskridelse.
 
 ## Regelkoder og ProblemDetails
 
@@ -230,9 +228,10 @@ Regler med samme betydning gjenbruker NIREGs kode. Ftbids egne regler har koder 
 | V0060 | UgyldigMaskinportenkonfigurasjonException |
 | V0062 | ProsjektidentitetAlleredeIBrukException |
 | V0067 | FtbidDublettException (dublett) |
-| V0068 | FtbidDublettException (sannsynlig dublett) |
+| V0068 | Utgått (tidligere sannsynlig dublett) |
 | V0070 | UgyldigOrganisasjonsnummerException |
 | V0071 | EiendomIkkeFunnetException |
+| V0072 | SøkeresultatIkkeFunnetException |
 
 HTTP-feilhåndteringen bruker ASP.NET Core `IExceptionHandler`, `UseExceptionHandler`, `AddProblemDetails`, `IProblemDetailsService` og `ProblemDetailsFactory`. `UseStatusCodePages` gir samme standardformat for tomme feilsvar, blant annet 401, 403, 404 og 429. Ugyldig JSON og modellbinding får også et problemobjekt med regelkode. Ingen egen håndskrevet HTTP-mellomvare brukes.
 

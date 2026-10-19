@@ -22,12 +22,12 @@ public sealed class PostgresFtbidLager(FtbidDbContext database, IFtbidDublettSer
         await database.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(7099999)", avbrudd);
         var kommuner = prosjekt.Eiendom.Select(e => e.Eiendomsidentifikasjon.Kommunenummer).Distinct().ToArray();
         var kandidater = await database.Ftbider.AsNoTracking().AsSplitQuery()
-            .Include(f => f.Eiendom).ThenInclude(e => e.Adresse)
+            .Include(f => f.Eiendom)
             .Where(f => f.Eiendom.Any(e => kommuner.Contains(e.Eiendomsidentifikasjon.Kommunenummer)))
             .ToListAsync(avbrudd);
         var treff = dublettService.Finn(prosjekt, kandidater);
         if (treff is not null)
-            throw new FtbidDublettException(treff.Ftbid, treff.Sannsynlig, treff.SamsvarendeFelter);
+            throw new FtbidDublettException(treff.Ftbid, treff.SamsvarendeFelter);
         var sekvens = await database.Database.SqlQueryRaw<long>("SELECT nextval('ftbid_sekvens') AS \"Value\"").SingleAsync(avbrudd);
         prosjekt.Ean = EanGenerator.Lag(gs1Prefiks, sekvens);
         database.Ftbider.Add(prosjekt);

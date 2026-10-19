@@ -33,7 +33,9 @@ public sealed class FtbidOppslagService(IFtbidLager lager, FtbidInnstillinger in
         filter = filter with { Kommunenummer = kommune,
             Ftbid = string.IsNullOrWhiteSpace(filter.Ftbid) ? null : NormaliserFtbid(filter.Ftbid, innstillinger),
             AnsvarligSokerOrganisasjonsnummer = NormaliserAnsvarligSoker(filter.AnsvarligSokerOrganisasjonsnummer) };
-        return (await lager.SokAsync(filter, avbrudd)).Select(TilResultat).ToList();
+        var resultater = await lager.SokAsync(filter, avbrudd);
+        if (resultater.Count == 0) throw new SøkeresultatIkkeFunnetException();
+        return resultater.Select(TilResultat).ToList();
     }
 
     private static FtbidResultat TilResultat(FtbidEntitet prosjekt)

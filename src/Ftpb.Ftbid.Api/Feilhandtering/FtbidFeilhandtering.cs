@@ -11,29 +11,28 @@ namespace Ftpb.Ftbid.Api.Feilhandtering;
 public sealed class FtbidFeilhandtering(ILogger<FtbidFeilhandtering> logger, ProblemDetailsFactory problemfabrikk,
     IProblemDetailsService problemservice) : IExceptionHandler
 {
-    /// <summary>Returnerer dubletter som 409, regelbrudd som 400 og andre interne feil som 500.</summary>
+    /// <summary>Returnerer dubletter som 409, tomme søk som 404, regelbrudd som 400 og andre interne feil som 500.</summary>
     public async ValueTask<bool> TryHandleAsync(HttpContext kontekst, Exception feil, CancellationToken avbrudd)
     {
         var dublett = feil as FtbidDublettException;
         var valideringsfeil = feil is ValideringsException;
+        var ikkeFunnet = feil is SøkeresultatIkkeFunnetException;
         var status = feil switch
         {
             FtbidDublettException => StatusCodes.Status409Conflict,
+            SøkeresultatIkkeFunnetException => StatusCodes.Status404NotFound,
             ValideringsException => StatusCodes.Status400BadRequest,
             _ => StatusCodes.Status500InternalServerError
         };
-        if (!valideringsfeil && dublett is null) logger.LogError(feil, "Feil ved behandling av ftbid-forespørsel.");
+        if (!valideringsfeil && !ikkeFunnet && dublett is null) logger.LogError(feil, "Feil ved behandling av ftbid-forespørsel.");
         var problem = problemfabrikk.CreateProblemDetails(kontekst, statusCode: status,
-            title: dublett is not null ? "Dublett funnet" : valideringsfeil ? "Valideringsfeil" : "Intern serverfeil",
-            detail: valideringsfeil || dublett is not null ? feil.Message : "En uventet feil oppstod. Prøv igjen senere.",
+            title: ikkeFunnet ? "Ingen treff" : dublett is not null ? "Dublett funnet" : valideringsfeil ? "Valideringsfeil" : "Intern serverfeil",
+            detail: valideringsfeil || ikkeFunnet || dublett is not null ? feil.Message : "En uventet feil oppstod. Prøv igjen senere.",
             instance: kontekst.Request.Path);
         if (feil is FtbidException ftbidFeil) problem.Extensions["ftbidFeil"] = FtbidFeil.FraUnntak(ftbidFeil);
         if (dublett is not null)
         {
-            var location = $"{kontekst.Request.PathBase}/api/ftbid/{Uri.EscapeDataString(dublett.Ftbid)}";
-            kontekst.Response.Headers.Location = location;
             problem.Extensions["eksisterendeFtbid"] = dublett.Ftbid;
-            problem.Extensions["sannsynligDublett"] = dublett.Sannsynlig;
             problem.Extensions["samsvarendeFelter"] = dublett.SamsvarendeFelter;
         }
         problem.Extensions["sporingsidentifikator"] = kontekst.TraceIdentifier;

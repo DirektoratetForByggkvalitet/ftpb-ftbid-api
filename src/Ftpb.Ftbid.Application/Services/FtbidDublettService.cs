@@ -3,75 +3,27 @@ using FtbidEntitet = Ftpb.Ftbid.Domain.Prosjekter.Ftbid;
 
 namespace Ftpb.Ftbid.Application.Services;
 
-/// <summary>Matcher kommuner, fullstendige matrikkelnumre og normaliserte prosjektopplysninger.</summary>
+/// <summary>Matcher kun kombinasjonen av prosjektnavn, prosjektnummer, tiltakstype og matrikkel.</summary>
 public sealed class FtbidDublettService : IFtbidDublettService
 {
     /// <inheritdoc />
-    public FtbidDublettTreff? Finn(FtbidEntitet prosjekt, IEnumerable<FtbidEntitet> kandidater) =>
-        kandidater.Select(k => Vurder(prosjekt, k)).OfType<FtbidDublettTreff>()
-            .OrderBy(t => t.Sannsynlig).ThenByDescending(t => t.SamsvarendeFelter.Count)
-            .ThenBy(t => t.Ftbid, StringComparer.Ordinal).FirstOrDefault();
-
-    private static FtbidDublettTreff? Vurder(FtbidEntitet ny, FtbidEntitet gammel)
+    public FtbidDublettTreff? Finn(FtbidEntitet prosjekt, IEnumerable<FtbidEntitet> kandidater)
     {
-        var kommuner = ny.Eiendom.Select(e => e.Eiendomsidentifikasjon.Kommunenummer).ToHashSet();
-        if (!gammel.Eiendom.Any(e => kommuner.Contains(e.Eiendomsidentifikasjon.Kommunenummer))) return null;
-        var felter = new List<string> { "Kommune" };
-        bool Match(string felt, string? a, string? b)
-        {
-            if (!Lik(a, b)) return false;
-            felter.Add(felt);
-            return true;
-        }
-        var matrikkel = ny.Eiendom.Any(a => gammel.Eiendom.Any(b => a.Eiendomsidentifikasjon == b.Eiendomsidentifikasjon));
-        if (matrikkel) felter.Add("Eiendomsidentifikasjon");
-        var adresse = ny.Eiendom.SelectMany(e => e.Adresse).Any(a => gammel.Eiendom.SelectMany(e => e.Adresse).Any(b =>
-            Lik(AdresseTekst(a), AdresseTekst(b))));
-        if (adresse) felter.Add("Adresse");
-        var navn = Match("Prosjektnavn", ny.Prosjektnavn, gammel.Prosjektnavn);
-        var referanse = Lik(ny.System, gammel.System) &&
-            Match("EksternProsjektreferanse", ny.EksternProsjektreferanse ?? ny.Prosjektnummer,
-                gammel.EksternProsjektreferanse ?? gammel.Prosjektnummer);
-        var sak = Match("KommunaltSaksnummer", ny.KommunaltSaksnummer, gammel.KommunaltSaksnummer);
-        var organisasjon = Match("Organisasjonsnummer", ny.Organisasjonsnummer, gammel.Organisasjonsnummer);
-        var tiltakshaver = Match("Tiltakshaver", ny.Tiltakshaver, gammel.Tiltakshaver);
-        var bygning = ny.Eiendom.Any(a => gammel.Eiendom.Any(b => Lik(a.Bygningsnummer, b.Bygningsnummer)));
-        if (bygning) felter.Add("Bygningsnummer");
-        var tiltak = Match("Tiltakstype", ny.Tiltakstype, gammel.Tiltakstype);
-        if (sak || referanse || (matrikkel && navn)) return new(gammel.Ean, false, felter);
-        var lignendeNavn = !navn && Lignende(ny.Prosjektnavn, gammel.Prosjektnavn);
-        if (lignendeNavn) felter.Add("Prosjektnavn (lignende)");
-        var stedsmatch = matrikkel || adresse || bygning;
-        var stottesignaler = ((organisasjon || tiltakshaver) ? 1 : 0) + (bygning ? 1 : 0) + (tiltak ? 1 : 0);
-        return stedsmatch && (navn || lignendeNavn || stottesignaler >= 2)
-            ? new(gammel.Ean, true, felter) : null;
+        var treff = kandidater.Where(k =>
+                Lik(prosjekt.Prosjektnavn, k.Prosjektnavn) &&
+                Lik(prosjekt.Prosjektnummer, k.Prosjektnummer) &&
+                Lik(prosjekt.Tiltakstype, k.Tiltakstype) &&
+                prosjekt.Eiendom.Any(a => k.Eiendom.Any(b =>
+                    a.Eiendomsidentifikasjon.Kommunenummer == b.Eiendomsidentifikasjon.Kommunenummer &&
+                    a.Eiendomsidentifikasjon.Gaardsnummer == b.Eiendomsidentifikasjon.Gaardsnummer &&
+                    a.Eiendomsidentifikasjon.Bruksnummer == b.Eiendomsidentifikasjon.Bruksnummer)))
+            .OrderBy(k => k.Ean, StringComparer.Ordinal).FirstOrDefault();
+        return treff is null ? null : new(treff.Ean,
+            ["Prosjektnavn", "Prosjektnummer", "Tiltakstype", "Matrikkelopplysninger"]);
     }
-
-    private static string AdresseTekst(Ftpb.Ftbid.Domain.Prosjekter.Eiendomsadresse a) =>
-        string.Join(' ', new[] { a.Adresselinje1, a.Adresselinje2, a.Adresselinje3, a.Postnr, a.Poststed,
-            a.Landkode, a.Gatenavn, a.Husnr, a.Bokstav }.Where(v => !string.IsNullOrWhiteSpace(v)));
 
     private static string Normaliser(string? verdi) => string.Join(' ',
         (verdi ?? "").Normalize(NormalizationForm.FormC).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).ToLowerInvariant();
 
     private static bool Lik(string? a, string? b) => Normaliser(a) is { Length: > 0 } normalisert && normalisert == Normaliser(b);
-
-    // Minst ti tegn og høyst 10 % redigeringsavstand. Tall må være like for å skille f.eks. byggetrinn 1 og 2.
-    private static bool Lignende(string a, string b)
-    {
-        a = Normaliser(a); b = Normaliser(b);
-        if (Math.Min(a.Length, b.Length) < 10 ||
-            new string(a.Where(char.IsDigit).ToArray()) != new string(b.Where(char.IsDigit).ToArray())) return false;
-        var grense = Math.Max(a.Length, b.Length) / 10;
-        if (Math.Abs(a.Length - b.Length) > grense) return false;
-        var forrige = Enumerable.Range(0, b.Length + 1).ToArray();
-        for (var i = 1; i <= a.Length; i++)
-        {
-            var rad = new int[b.Length + 1]; rad[0] = i;
-            for (var j = 1; j <= b.Length; j++)
-                rad[j] = Math.Min(Math.Min(rad[j - 1] + 1, forrige[j] + 1), forrige[j - 1] + (a[i - 1] == b[j - 1] ? 0 : 1));
-            forrige = rad;
-        }
-        return forrige[b.Length] <= grense;
-    }
 }

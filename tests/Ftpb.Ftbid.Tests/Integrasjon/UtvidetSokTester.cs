@@ -13,7 +13,7 @@ public sealed class UtvidetSokTester(PostgresApiOppsett oppsett)
 {
     private static OpprettFtbid NyttProsjekt() => new()
     {
-        Prosjektnavn = "Søketest " + Guid.NewGuid().ToString("N"), System = "Søketester",
+        Prosjektnavn = "Søketest " + Guid.NewGuid().ToString("N"), System = "Søketester", Prosjektnr = "P-1001",
         Eiendom = [new() { Eiendomsidentifikasjon = new("0301", 71, 9), Adresse = [new("Søkeadresse 1")] },
             new() { Eiendomsidentifikasjon = new("5001", 82, 10, 3, 4),
                 Adresse = [new("Søkeadresse " + Guid.NewGuid().ToString("N"))],
@@ -57,8 +57,8 @@ public sealed class UtvidetSokTester(PostgresApiOppsett oppsett)
         Assert.Equal(ftbid, Assert.Single(kort!).Ftbid);
         var alleFiltre = string.Join('&', filtre.Select(f => f.Key + "=" + Uri.EscapeDataString(f.Value)));
         Assert.Equal(ftbid, Assert.Single((await klient.GetFromJsonAsync<List<FtbidResultat>>("/api/ftbid/sok?" + alleFiltre))!).Ftbid);
-        Assert.Empty((await klient.GetFromJsonAsync<List<FtbidResultat>>("/api/ftbid/sok?ftid=" + ftbid +
-            "&ansvarligsokerorganisasjonsnummer=" + prosjekt.Organisasjonsnummer))!);
+        Assert.Equal(HttpStatusCode.NotFound, (await klient.GetAsync("/api/ftbid/sok?ftid=" + ftbid +
+            "&ansvarligsokerorganisasjonsnummer=" + prosjekt.Organisasjonsnummer)).StatusCode);
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public sealed class UtvidetSokTester(PostgresApiOppsett oppsett)
             "gaardsnummer=71&bruksnummer=9&festenummer=3", "gaardsnummer=82&seksjonsnummer=0",
             "tiltakstype=ukjent", "bygningsnummer=ukjent", "bolignummer=ukjent",
             "kommunaltsaksnummer=ukjent", "eksternprosjektreferanse=" + Uri.EscapeDataString(prosjekt.EksternProsjektreferanse![..8]) })
-            Assert.Empty((await klient.GetFromJsonAsync<List<FtbidResultat>>(grunnlag + "&" + feilfilter))!);
+            Assert.Equal(HttpStatusCode.NotFound, (await klient.GetAsync(grunnlag + "&" + feilfilter)).StatusCode);
         Assert.Equal(ftbid, Assert.Single((await klient.GetFromJsonAsync<List<FtbidResultat>>(grunnlag +
             "&prosjektnavn=SØKETEST&tiltaksnavn=SØKE&adresse=SØKEADRESSE&festenummer=0&seksjonsnummer=0"))!).Ftbid);
     }

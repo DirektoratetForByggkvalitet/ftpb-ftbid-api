@@ -18,7 +18,7 @@ public sealed class FtbidKontroller(IFtbidOpprettingService oppretting, IFtbidOp
     [Authorize(Policy = MaskinportenAutentisering.Endre)]
     [EnableRateLimiting("oppretting")]
     [EndpointSummary("Opprett en ftbid")]
-    [EndpointDescription("Returnerer en 18-sifret identifikator. Dubletter og sannsynlige dubletter gir 409 med ProblemDetails og Location til eksisterende ftbid.")]
+    [EndpointDescription("Returnerer en 18-sifret identifikator. Samme prosjektnavn, prosjektnummer, tiltakstype og matrikkel (kommune, gård, bruk) gir 409 med ProblemDetails og eksisterende ftbid. Alle fire opplysninger kreves.")]
     [ProducesResponseType<string>(StatusCodes.Status200OK, "application/json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
@@ -45,10 +45,11 @@ public sealed class FtbidKontroller(IFtbidOpprettingService oppretting, IFtbidOp
     }
 
     /// <summary>Søker i prosjektdata med eksakt matrikkeltreff og deltreff på navn og adresser.</summary>
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     [HttpGet("sok")]
     [Authorize(Policy = MaskinportenAutentisering.Les)]
     [EndpointSummary("Søk etter ftbid og metadata")]
-    [EndpointDescription("Minst ett filter kreves. Flere matrikkelfiltre må treffe samme matrikkelenhet.")]
+    [EndpointDescription("Minst ett filter kreves. Flere matrikkelfiltre må treffe samme matrikkelenhet. Ingen treff gir 404.")]
     [ProducesResponseType<List<FtbidResultat>>(StatusCodes.Status200OK, "application/json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status500InternalServerError, "application/problem+json")]

@@ -46,10 +46,12 @@ public enum Feilkode
     V0062 = 20, // V0061 er utgått.
     /// <summary>Prosjektet er en dublett av en eksisterende ftbid.</summary>
     V0067 = 25, // V0063–V0066 er utgått; behold eksisterende enumverdier.
-    /// <summary>Prosjektopplysningene tyder på en sannsynlig dublett.</summary>
+    /// <summary>Utgått kode for sannsynlig dublett.</summary>
     V0068,
     /// <summary>Ansvarlig søkers organisasjonsnummer har ugyldig format.</summary>
     V0070 = 28, // V0069 er utgått; behold eksisterende enumverdi.
     /// <summary>Eiendommen finnes ikke på denne ftbid-en.</summary>
     V0071,
+    /// <summary>Ingen ftbider samsvarer med søkefiltrene.</summary>
+    V0072,
 }
