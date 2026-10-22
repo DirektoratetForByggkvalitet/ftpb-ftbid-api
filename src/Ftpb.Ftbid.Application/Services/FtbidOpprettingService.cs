@@ -27,6 +27,10 @@ public sealed class FtbidOpprettingService(IFtbidLager lager, IKommuneregister k
             eiendom.Rekkefolge = eiendommer.Count;
             eiendommer.Add(eiendom);
         }
+        if (foresporsel.Tiltakstyper is null || foresporsel.Tiltakstyper.Count == 0)
+            throw new PåkrevdVerdiManglerException("Tiltakstyper");
+        var tiltakstyper = foresporsel.Tiltakstyper.Select(t => KrevTekst(t, "Tiltakstyper", 200))
+            .DistinctBy(TiltakstypeSett.NormaliserTekst, StringComparer.Ordinal).ToList();
         var prosjekt = new FtbidEntitet
         {
             Prosjektnavn = navn, NormalisertProsjektnavn = navn.ToLowerInvariant(), System = system,
@@ -36,7 +40,7 @@ public sealed class FtbidOpprettingService(IFtbidLager lager, IKommuneregister k
             Tiltakshaver = ValgfriTekst(foresporsel.Tiltakshaver, "Tiltakshaver", 500),
             Organisasjonsnummer = ValgfriTekst(foresporsel.Organisasjonsnummer, "Organisasjonsnummer", 9),
             AnsvarligSokerOrganisasjonsnummer = ansvarligSoker,
-            Tiltakstype = KrevTekst(foresporsel.Tiltakstype, "Tiltakstype", 200),
+            Tiltakstyper = tiltakstyper, TiltakstyperHash = TiltakstypeSett.LagHash(tiltakstyper),
             Utstedt = DateTimeOffset.UtcNow, Eiendom = eiendommer
         };
         return await lager.OpprettAsync(prosjekt, innstillinger.Gs1Prefiks, avbrudd);

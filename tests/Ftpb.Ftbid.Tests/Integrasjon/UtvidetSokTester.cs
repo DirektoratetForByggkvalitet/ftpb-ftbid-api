@@ -19,7 +19,7 @@ public sealed class UtvidetSokTester(PostgresApiOppsett oppsett)
                 Adresse = [new("Søkeadresse " + Guid.NewGuid().ToString("N"))],
                 Bygningsnummer = "BYGG-" + Guid.NewGuid(), Bolignummer = "H0101" }],
         EksternProsjektreferanse = "REF-" + Guid.NewGuid(), KommunaltSaksnummer = "SAK-" + Guid.NewGuid(),
-        Tiltakstype = "Tiltak-" + Guid.NewGuid(),
+        Tiltakstyper = ["Tiltak-" + Guid.NewGuid()],
         AnsvarligSokerOrganisasjonsnummer = "987654321",
         Organisasjonsnummer = "123456789"
     };
@@ -39,7 +39,7 @@ public sealed class UtvidetSokTester(PostgresApiOppsett oppsett)
         var filtre = new Dictionary<string, string>
         {
             ["ftid"] = ftbid, ["prosjektnavn"] = prosjekt.Prosjektnavn!,
-            ["tiltaksnavn"] = prosjekt.Prosjektnavn!, ["tiltakstype"] = prosjekt.Tiltakstype!,
+            ["tiltaksnavn"] = prosjekt.Prosjektnavn!, ["tiltakstype"] = prosjekt.Tiltakstyper[0],
             ["eksternprosjektreferanse"] = prosjekt.EksternProsjektreferanse!,
             ["kommunaltsaksnummer"] = prosjekt.KommunaltSaksnummer!,
             ["ansvarligsokerorganisasjonsnummer"] = prosjekt.AnsvarligSokerOrganisasjonsnummer!,

@@ -18,7 +18,7 @@ public sealed class FtbidKontroller(IFtbidOpprettingService oppretting, IFtbidOp
     [Authorize(Policy = MaskinportenAutentisering.Endre)]
     [EnableRateLimiting("oppretting")]
     [EndpointSummary("Opprett en ftbid")]
-    [EndpointDescription("Returnerer en 18-sifret identifikator. Samme prosjektnavn, prosjektnummer, tiltakstype og matrikkel (kommune, gård, bruk) gir 409 med ProblemDetails og eksisterende ftbid. Alle fire opplysninger kreves.")]
+    [EndpointDescription("Returnerer en 18-sifret identifikator. Samme prosjektnavn, prosjektnummer, tiltakstyper og matrikkel (kommune, gård, bruk) gir 409 med ProblemDetails og eksisterende ftbid. Alle fire opplysninger kreves.")]
     [ProducesResponseType<string>(StatusCodes.Status200OK, "application/json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]

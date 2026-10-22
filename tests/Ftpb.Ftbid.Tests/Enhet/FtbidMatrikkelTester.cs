@@ -27,7 +27,7 @@ public sealed class FtbidMatrikkelTester
     public async Task EiendomKanIkkeUtelatesEllerVaereTom(bool eksplisitt)
     {
         var lager = new TestLager();
-        var prosjekt = new OpprettFtbid { Prosjektnavn = "Uten eiendom", System = "Test", Prosjektnr = "P-1", Tiltakstype = "Tilbygg" };
+        var prosjekt = new OpprettFtbid { Prosjektnavn = "Uten eiendom", System = "Test", Prosjektnr = "P-1", Tiltakstyper = ["Tilbygg"] };
         if (eksplisitt) prosjekt.Eiendom = [];
         await Assert.ThrowsAsync<PåkrevdVerdiManglerException>(() =>
             new FtbidOpprettingService(lager, new Kommuneregister(), new()).OpprettAsync(prosjekt));
@@ -42,7 +42,7 @@ public sealed class FtbidMatrikkelTester
         andre.Eiendomsidentifikasjon = new("0301", 9_999_999, 88, 3, 4);
         andre.Adresse = [new("Annen adresse"), new("Adresse nummer to")];
         andre.Bygningsnummer = "000123";
-        var prosjekt = new OpprettFtbid { Prosjektnavn = "Test", System = "Test", Prosjektnr = "P-1001", Tiltakstype = "Tilbygg", Eiendom = [Eiendom(), andre] };
+        var prosjekt = new OpprettFtbid { Prosjektnavn = "Test", System = "Test", Prosjektnr = "P-1001", Tiltakstyper = ["Tilbygg"], Eiendom = [Eiendom(), andre] };
         await new FtbidOpprettingService(lager, new Kommuneregister(), new()).OpprettAsync(prosjekt);
         lager.Opprettet!.Ean = Ftbid;
         var resultat = Assert.Single(await new FtbidOppslagService(lager, new()).HentAsync(Ftbid));
@@ -115,7 +115,7 @@ public sealed class FtbidMatrikkelTester
     {
         var lager = new TestLager(); var andre = Eiendom(); andre.Eiendomsidentifikasjon = new("0301", -1, 1);
         await Assert.ThrowsAsync<UgyldigeMatrikkelopplysningerException>(() => new FtbidOpprettingService(lager, new Kommuneregister(), new())
-            .OpprettAsync(new() { Prosjektnavn = "Test", System = "Test", Prosjektnr = "P-1001", Tiltakstype = "Tilbygg", Eiendom = [Eiendom(), andre] }));
+            .OpprettAsync(new() { Prosjektnavn = "Test", System = "Test", Prosjektnr = "P-1001", Tiltakstyper = ["Tilbygg"], Eiendom = [Eiendom(), andre] }));
         Assert.Null(lager.Opprettet);
     }
 

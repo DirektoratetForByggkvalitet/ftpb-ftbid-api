@@ -192,16 +192,25 @@ namespace Ftpb.Ftbid.Infrastructure.Migrasjoner
                         .HasColumnType("character varying(500)")
                         .HasColumnName("tiltakshaver");
 
-                    b.Property<string>("Tiltakstype")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("tiltakstype");
+                    b.PrimitiveCollection<List<string>>("Tiltakstyper")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text[]")
+                        .HasColumnName("tiltakstyper")
+                        .HasDefaultValueSql("ARRAY[]::text[]");
+
+                    b.Property<string>("TiltakstyperHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("tiltakstyper_hash");
 
                     b.Property<DateTimeOffset>("Utstedt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("utstedt");
 
                     b.HasKey("Ean");
+
+                    b.HasIndex("TiltakstyperHash");
 
                     b.ToTable("ftbid", (string)null);
                 });

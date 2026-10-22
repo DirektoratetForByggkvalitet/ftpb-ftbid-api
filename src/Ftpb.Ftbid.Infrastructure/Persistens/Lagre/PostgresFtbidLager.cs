@@ -20,10 +20,12 @@ public sealed class PostgresFtbidLager(FtbidDbContext database, IFtbidDublettSer
         await using var transaksjon = await database.Database.BeginTransactionAsync(avbrudd);
         // Transaksjonslåsen gjør oppslag og oppretting atomisk også på tvers av API-instanser.
         await database.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(7099999)", avbrudd);
+        prosjekt.TiltakstyperHash = TiltakstypeSett.LagHash(prosjekt.Tiltakstyper);
         var kommuner = prosjekt.Eiendom.Select(e => e.Eiendomsidentifikasjon.Kommunenummer).Distinct().ToArray();
         var kandidater = await database.Ftbider.AsNoTracking().AsSplitQuery()
             .Include(f => f.Eiendom)
-            .Where(f => f.Eiendom.Any(e => kommuner.Contains(e.Eiendomsidentifikasjon.Kommunenummer)))
+            .Where(f => (f.TiltakstyperHash == prosjekt.TiltakstyperHash || f.TiltakstyperHash == null) &&
+                f.Eiendom.Any(e => kommuner.Contains(e.Eiendomsidentifikasjon.Kommunenummer)))
             .ToListAsync(avbrudd);
         var treff = dublettService.Finn(prosjekt, kandidater);
         if (treff is not null)
@@ -95,7 +97,7 @@ public sealed class PostgresFtbidLager(FtbidDbContext database, IFtbidDublettSer
         if (!string.IsNullOrWhiteSpace(filter.Tiltakstype))
         {
             var type = filter.Tiltakstype.Trim().ToLowerInvariant();
-            sporring = sporring.Where(f => (f.Tiltakstype != null && f.Tiltakstype.ToLower() == type) ||
+            sporring = sporring.Where(f => f.Tiltakstyper.Any(t => t.ToLower() == type) ||
                 f.Identifikasjonsmetadata.Any(i => i.Skjemametadata.Tiltakstyper.Any(t => t.ToLower() == type)));
         }
         if (!string.IsNullOrWhiteSpace(filter.EksternProsjektreferanse))

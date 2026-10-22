@@ -21,7 +21,7 @@ public sealed class FtbidApiTester(PostgresApiOppsett oppsett)
 {
     private static OpprettFtbid NyttProsjekt(string? navn = null) => new()
     {
-        Prosjektnavn = navn ?? "Prosjekt " + Guid.NewGuid().ToString("N"), System = "Testsystem", Prosjektnr = "P-1001", Tiltakstype = "Tilbygg",
+        Prosjektnavn = navn ?? "Prosjekt " + Guid.NewGuid().ToString("N"), System = "Testsystem", Prosjektnr = "P-1001", Tiltakstyper = ["Tilbygg"],
         Eiendom = [new() { Eiendomsidentifikasjon = new("0301", 10, 1),
             Adresse = [new("Karl Johans gate 1"), new("Storgata 2")] },
             new() { Eiendomsidentifikasjon = new("5001", 20, 2, 3, 4) }]
@@ -56,7 +56,7 @@ public sealed class FtbidApiTester(PostgresApiOppsett oppsett)
     public async Task OpprettingMedKunListerFungerer()
     {
         using var klient = oppsett.Klient();
-        var foresporsel = new OpprettFtbid { Prosjektnavn = Guid.NewGuid().ToString(), System = "Test", Prosjektnr = "P-1001", Tiltakstype = "Tilbygg",
+        var foresporsel = new OpprettFtbid { Prosjektnavn = Guid.NewGuid().ToString(), System = "Test", Prosjektnr = "P-1001", Tiltakstyper = ["Tilbygg"],
             Eiendom = [new() { Eiendomsidentifikasjon = new("0301", 1, 2), Adresse = [new("Adresse 1"), new("Adresse 2")] }, new() { Eiendomsidentifikasjon = new("5001", 3, 4) }] };
         var svar = await klient.PostAsJsonAsync("/api/ftbid", foresporsel);
         Assert.Equal(HttpStatusCode.OK, svar.StatusCode);
@@ -97,7 +97,7 @@ public sealed class FtbidApiTester(PostgresApiOppsett oppsett)
         foresporsel.Tiltakshaver = "Ola Nordmann";
         foresporsel.Organisasjonsnummer = "123456789";
         foresporsel.Eiendom[0].Bygningsnummer = Guid.NewGuid().ToString();
-        foresporsel.Tiltakstype = "Tilbygg";
+        foresporsel.Tiltakstyper = ["Tilbygg"];
         var svar = await klient.PostAsJsonAsync("/api/ftbid", foresporsel);
         Assert.Equal(HttpStatusCode.OK, svar.StatusCode);
         var ftbid = (await svar.Content.ReadFromJsonAsync<string>())!;
@@ -107,7 +107,7 @@ public sealed class FtbidApiTester(PostgresApiOppsett oppsett)
         Assert.Equal(foresporsel.Tiltakshaver, resultat.Tiltakshaver);
         Assert.Equal(foresporsel.Organisasjonsnummer, resultat.Organisasjonsnummer);
         Assert.Equal(foresporsel.Eiendom[0].Bygningsnummer, resultat.Eiendom[0].Bygningsnummer);
-        Assert.Equal(foresporsel.Tiltakstype, resultat.Tiltakstype);
+        Assert.Equal(foresporsel.Tiltakstyper, resultat.Tiltakstyper);
         foresporsel.EksternProsjektreferanse = null;
         foresporsel.KommunaltSaksnummer = null;
         foresporsel.Prosjektnavn = "Et helt annet navn";
@@ -160,7 +160,7 @@ public sealed class FtbidApiTester(PostgresApiOppsett oppsett)
         var ftbid = await opprettet.Content.ReadFromJsonAsync<string>();
         if (felt == "navn") prosjekt.Prosjektnavn += "e";
         if (felt == "nummer") prosjekt.Prosjektnr += "2";
-        if (felt == "type") prosjekt.Tiltakstype = "Riving";
+        if (felt == "type") prosjekt.Tiltakstyper = ["Riving"];
         var ident = prosjekt.Eiendom[0].Eiendomsidentifikasjon!;
         prosjekt.Eiendom[0].Eiendomsidentifikasjon = felt switch {
             "kommune" => ident with { Kommunenummer = "5001" },
@@ -178,9 +178,9 @@ public sealed class FtbidApiTester(PostgresApiOppsett oppsett)
     [InlineData("Prosjektnr", null)]
     [InlineData("Prosjektnr", "")]
     [InlineData("Prosjektnr", "   ")]
-    [InlineData("Tiltakstype", null)]
-    [InlineData("Tiltakstype", "")]
-    [InlineData("Tiltakstype", "   ")]
+    [InlineData("Tiltakstyper", null)]
+    [InlineData("Tiltakstyper", "")]
+    [InlineData("Tiltakstyper", "   ")]
     [InlineData("Eiendom", null)]
     [InlineData("Eiendom", "tom")]
     public async Task UnikhetsopplysningerErPaakrevd(string felt, string? verdi)
@@ -189,10 +189,10 @@ public sealed class FtbidApiTester(PostgresApiOppsett oppsett)
         var prosjekt = NyttProsjekt();
         if (felt == "Prosjektnavn") prosjekt.Prosjektnavn = verdi;
         if (felt == "Prosjektnr") prosjekt.Prosjektnr = verdi;
-        if (felt == "Tiltakstype") prosjekt.Tiltakstype = verdi;
+        if (felt == "Tiltakstyper") prosjekt.Tiltakstyper = verdi is null ? null! : [verdi];
         if (felt == "Eiendom") prosjekt.Eiendom = verdi is null ? null! : [];
         await KontrollerProblemAsync(await klient.PostAsJsonAsync("/api/ftbid", prosjekt), 400,
-            felt == "Eiendom" && verdi is null ? "V0038" : "V0042");
+            (felt is "Eiendom" or "Tiltakstyper") && verdi is null ? "V0038" : "V0042");
     }
 
     [Theory]

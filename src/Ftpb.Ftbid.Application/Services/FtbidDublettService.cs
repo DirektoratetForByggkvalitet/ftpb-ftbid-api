@@ -1,9 +1,9 @@
-using System.Text;
+using Ftpb.Ftbid.Domain.Prosjekter;
 using FtbidEntitet = Ftpb.Ftbid.Domain.Prosjekter.Ftbid;
 
 namespace Ftpb.Ftbid.Application.Services;
 
-/// <summary>Matcher kun kombinasjonen av prosjektnavn, prosjektnummer, tiltakstype og matrikkel.</summary>
+/// <summary>Matcher kun kombinasjonen av prosjektnavn, prosjektnummer, tiltakstyper og matrikkel.</summary>
 public sealed class FtbidDublettService : IFtbidDublettService
 {
     /// <inheritdoc />
@@ -12,18 +12,18 @@ public sealed class FtbidDublettService : IFtbidDublettService
         var treff = kandidater.Where(k =>
                 Lik(prosjekt.Prosjektnavn, k.Prosjektnavn) &&
                 Lik(prosjekt.Prosjektnummer, k.Prosjektnummer) &&
-                Lik(prosjekt.Tiltakstype, k.Tiltakstype) &&
+                prosjekt.Tiltakstyper.Count > 0 && k.Tiltakstyper.Count > 0 &&
+                TiltakstypeSett.LagHash(prosjekt.Tiltakstyper) == TiltakstypeSett.LagHash(k.Tiltakstyper) &&
+                TiltakstypeSett.Normaliser(prosjekt.Tiltakstyper).SequenceEqual(TiltakstypeSett.Normaliser(k.Tiltakstyper)) &&
                 prosjekt.Eiendom.Any(a => k.Eiendom.Any(b =>
                     a.Eiendomsidentifikasjon.Kommunenummer == b.Eiendomsidentifikasjon.Kommunenummer &&
                     a.Eiendomsidentifikasjon.Gaardsnummer == b.Eiendomsidentifikasjon.Gaardsnummer &&
                     a.Eiendomsidentifikasjon.Bruksnummer == b.Eiendomsidentifikasjon.Bruksnummer)))
             .OrderBy(k => k.Ean, StringComparer.Ordinal).FirstOrDefault();
         return treff is null ? null : new(treff.Ean,
-            ["Prosjektnavn", "Prosjektnummer", "Tiltakstype", "Matrikkelopplysninger"]);
+            ["Prosjektnavn", "Prosjektnummer", "Tiltakstyper", "Matrikkelopplysninger"]);
     }
 
-    private static string Normaliser(string? verdi) => string.Join(' ',
-        (verdi ?? "").Normalize(NormalizationForm.FormC).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).ToLowerInvariant();
-
-    private static bool Lik(string? a, string? b) => Normaliser(a) is { Length: > 0 } normalisert && normalisert == Normaliser(b);
+    private static bool Lik(string? a, string? b) => TiltakstypeSett.NormaliserTekst(a) is { Length: > 0 } normalisert &&
+        normalisert == TiltakstypeSett.NormaliserTekst(b);
 }

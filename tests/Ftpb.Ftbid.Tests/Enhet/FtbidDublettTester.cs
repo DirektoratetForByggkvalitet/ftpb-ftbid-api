@@ -1,4 +1,5 @@
 using Ftpb.Ftbid.Application.Services;
+using Ftpb.Ftbid.Domain.Prosjekter;
 using Xunit;
 using Prosjekt = Ftpb.Ftbid.Domain.Prosjekter.Ftbid;
 
@@ -7,10 +8,32 @@ namespace Ftpb.Ftbid.Tests.Enhet;
 public sealed class FtbidDublettTester
 {
     private readonly FtbidDublettService _service = new();
+
+    [Fact]
+    public void TiltakstyperSammenlignesSomEtNormalisertSett()
+    {
+        var ny = Ny(); var gammel = Ny();
+        ny.Tiltakstyper = [" RIVING ", "Pa\u030abygg", "påbygg"];
+        gammel.Tiltakstyper = ["Påbygg", "Riving"];
+        Assert.Equal(TiltakstypeSett.LagHash(ny.Tiltakstyper), TiltakstypeSett.LagHash(gammel.Tiltakstyper));
+        Assert.NotNull(_service.Finn(ny, [gammel]));
+        gammel.Tiltakstyper = ["Riving"];
+        Assert.Null(_service.Finn(ny, [gammel]));
+        gammel.Tiltakstyper = ["Riving", "Påbygg", "Tilbygg"];
+        Assert.Null(_service.Finn(ny, [gammel]));
+    }
+
+    [Fact]
+    public void HashSkillerMellomVerdierOgSkilletegn()
+    {
+        Assert.NotEqual(TiltakstypeSett.LagHash(["a", "b"]), TiltakstypeSett.LagHash(["a,b"]));
+        Assert.NotEqual(TiltakstypeSett.LagHash(["ab", "c"]), TiltakstypeSett.LagHash(["a", "bc"]));
+        Assert.Equal(TiltakstypeSett.LagHash([" NYTT\t  ANLEGG "]), TiltakstypeSett.LagHash(["nytt anlegg"]));
+    }
     private static Prosjekt Ny() => new()
     {
         Ean = "709999900000000017", Prosjektnavn = "Tilbygg Solsiden skole", System = "Test",
-        Prosjektnummer = "P-1001", Tiltakstype = "Tilbygg",
+        Prosjektnummer = "P-1001", Tiltakstyper = ["Tilbygg"],
         Eiendom = [new() { Eiendomsidentifikasjon = new("0301", 1, 2) }]
     };
 
@@ -19,12 +42,12 @@ public sealed class FtbidDublettTester
     {
         var ny = Ny();
         ny.Prosjektnavn = "  TILBYGG   Solsiden skole ";
-        ny.Prosjektnummer = " p-1001 "; ny.Tiltakstype = " TILBYGG ";
+        ny.Prosjektnummer = " p-1001 "; ny.Tiltakstyper = [" TILBYGG "];
         ny.System = "Annet system";
         var treff = _service.Finn(ny, [Ny()]);
         Assert.NotNull(treff);
         Assert.Equal(Ny().Ean, treff.Ftbid);
-        Assert.Equal(["Prosjektnavn", "Prosjektnummer", "Tiltakstype", "Matrikkelopplysninger"], treff.SamsvarendeFelter);
+        Assert.Equal(["Prosjektnavn", "Prosjektnummer", "Tiltakstyper", "Matrikkelopplysninger"], treff.SamsvarendeFelter);
     }
 
     [Theory]
@@ -45,7 +68,7 @@ public sealed class FtbidDublettTester
         ny.Eiendom[0].Adresse = gammel.Eiendom[0].Adresse = [new() { Adresselinje1 = "Storgata 1" }];
         if (felt == "navn") ny.Prosjektnavn += "e";
         if (felt == "nummer") ny.Prosjektnummer += "2";
-        if (felt == "type") ny.Tiltakstype = "Riving";
+        if (felt == "type") ny.Tiltakstyper = ["Riving"];
         var ident = ny.Eiendom[0].Eiendomsidentifikasjon;
         ny.Eiendom[0].Eiendomsidentifikasjon = felt switch {
             "kommune" => ident with { Kommunenummer = "5001" },
@@ -81,7 +104,7 @@ public sealed class FtbidDublettTester
     {
         var gammel = Ny(); gammel.Prosjektnummer = verdi;
         Assert.Null(_service.Finn(Ny(), [gammel]));
-        gammel = Ny(); gammel.Tiltakstype = verdi;
+        gammel = Ny(); gammel.Tiltakstyper = verdi is null ? [] : [verdi];
         Assert.Null(_service.Finn(Ny(), [gammel]));
     }
 }

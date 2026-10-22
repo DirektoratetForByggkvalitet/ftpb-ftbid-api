@@ -29,7 +29,9 @@ public sealed class FtbidDbContext(DbContextOptions<FtbidDbContext> alternativer
         ftbid.Property(f => f.Tiltakshaver).HasMaxLength(500);
         ftbid.Property(f => f.Organisasjonsnummer).HasMaxLength(9);
         ftbid.Property(f => f.AnsvarligSokerOrganisasjonsnummer).HasMaxLength(9);
-        ftbid.Property(f => f.Tiltakstype).HasMaxLength(200);
+        ftbid.Property(f => f.Tiltakstyper).HasColumnType("text[]").HasDefaultValueSql("ARRAY[]::text[]");
+        ftbid.Property(f => f.TiltakstyperHash).HasMaxLength(64);
+        ftbid.HasIndex(f => f.TiltakstyperHash);
         ftbid.Property(f => f.System).HasMaxLength(200);
         ftbid.HasMany(f => f.Identifikasjonsmetadata).WithOne().HasForeignKey(m => m.Ftbid).OnDelete(DeleteBehavior.Restrict);
         ftbid.HasMany(f => f.Eiendom).WithOne().HasForeignKey(e => e.Ftbid).OnDelete(DeleteBehavior.Cascade);

@@ -15,7 +15,7 @@ public sealed class FtbidEiendomTester(PostgresApiOppsett oppsett)
             Gatenavn: "Admiralveien", Husnr: "2", Bokstav: "A")], Bygningsnummer = "300827824", Bolignummer = "H0201", Kommunenavn = "Oslo" };
 
     private static async Task<string> OpprettAsync(HttpClient klient) =>
-        (await (await klient.PostAsJsonAsync("/api/ftbid", new OpprettFtbid { Prosjektnavn = Guid.NewGuid().ToString(), System = "Test", Prosjektnr = "P-1", Tiltakstype = "Tilbygg", Eiendom = [Eiendom()] }))
+        (await (await klient.PostAsJsonAsync("/api/ftbid", new OpprettFtbid { Prosjektnavn = Guid.NewGuid().ToString(), System = "Test", Prosjektnr = "P-1", Tiltakstyper = ["Tilbygg"], Eiendom = [Eiendom()] }))
             .Content.ReadFromJsonAsync<string>())!;
 
     [Fact]

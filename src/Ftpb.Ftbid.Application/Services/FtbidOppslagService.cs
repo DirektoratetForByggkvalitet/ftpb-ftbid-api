@@ -44,7 +44,7 @@ public sealed class FtbidOppslagService(IFtbidLager lager, FtbidInnstillinger in
             Prosjektnummer = prosjekt.Prosjektnummer,
             EksternProsjektreferanse = prosjekt.EksternProsjektreferanse, KommunaltSaksnummer = prosjekt.KommunaltSaksnummer,
             Tiltakshaver = prosjekt.Tiltakshaver, Organisasjonsnummer = prosjekt.Organisasjonsnummer,
-            Tiltakstype = prosjekt.Tiltakstype, AnsvarligSokerOrganisasjonsnummer = prosjekt.AnsvarligSokerOrganisasjonsnummer,
+            Tiltakstyper = prosjekt.Tiltakstyper, AnsvarligSokerOrganisasjonsnummer = prosjekt.AnsvarligSokerOrganisasjonsnummer,
             Eiendom = prosjekt.Eiendom.OrderBy(e => e.Rekkefolge).Select(e => new EiendomResultat(e.Id,
                 e.Eiendomsidentifikasjon, e.Adresse.OrderBy(a => a.Rekkefolge).Select(a => new Adressedata(
                     a.Adresselinje1, a.Adresselinje2, a.Adresselinje3, a.Postnr, a.Poststed, a.Landkode,

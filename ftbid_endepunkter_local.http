@@ -13,7 +13,7 @@ Content-Type: application/json
 {
   "Prosjektnavn": "Utvidelse av bygget",
   "Prosjektnr": "P-1001",
-  "Tiltakstype": "Tilbygg",
+  "Tiltakstyper": ["Tilbygg", "Riving"],
   "System": "Søknadssystem",
   "Eiendom": [
     {

@@ -95,7 +95,7 @@ Ved oppretting må `Eiendom` inneholde **1 til 100 eiendommer**. Eksisterende pr
 {
   "Prosjektnavn": "Utvidelse av bygget",
   "Prosjektnr": "P-1001",
-  "Tiltakstype": "Tilbygg",
+  "Tiltakstyper": ["Tilbygg", "Riving"],
   "System": "Søknadssystem",
   "Eiendom": [
     {
@@ -133,9 +133,13 @@ Kommunen må finnes og være gyldig i prosjektets lokale kommuneregister ved opp
 
 Dette erstatter de tidligere flate `Adresser`, `Matrikkelopplysninger`, adresse-, matrikkel-, bygningsnummer- og bruksenhetsfeltene på prosjektnivå. Klienter må bruke den nye kontrakten; gamle eller ukjente felt i oppretting, eiendom og adresse avvises med 400 for å unngå stille tap av opplysninger. API-et bruker PascalCase på feltnavn, og inndata er ikke følsomme for store/små bokstaver. Oppslag og søk returnerer samme struktur; hvert eiendomselement har i tillegg en stabil `Id` for endring og sletting.
 
-Prosjektet støtter `EksternProsjektreferanse` (200 tegn), `KommunaltSaksnummer` (200), `Tiltakshaver` (500), `Organisasjonsnummer` (9), `AnsvarligSokerOrganisasjonsnummer` (ni sifre) og `Tiltakstype` (200). `Prosjektnavn` er også tiltaksnavn; `Prosjektnr` brukes som reserve for ekstern referanse.
+Prosjektet støtter `EksternProsjektreferanse` (200 tegn), `KommunaltSaksnummer` (200), `Tiltakshaver` (500), `Organisasjonsnummer` (9), `AnsvarligSokerOrganisasjonsnummer` (ni sifre) og `Tiltakstyper` (liste med inntil 200 tegn per verdi). `Prosjektnavn` er også tiltaksnavn; `Prosjektnr` brukes som reserve for ekstern referanse.
 
-Dublettkontrollen bruker kun kombinasjonen av `Prosjektnavn`, `Prosjektnr` (prosjektnummer), `Tiltakstype` og matrikkelens `Kommunenummer`, `Gaardsnummer` og `Bruksnummer`. Alle tre tekstfeltene er påkrevd og kan ikke være null, tomme eller bare mellomrom. `Eiendom` må inneholde minst én eiendom med alle tre matrikkelfeltene. Gårds- og bruksnummer må oppgis som ikke-negative heltall; manglende eller null verdier avvises med 400.
+Dublettkontrollen bruker kun kombinasjonen av `Prosjektnavn`, `Prosjektnr` (prosjektnummer), `Tiltakstyper` og matrikkelens `Kommunenummer`, `Gaardsnummer` og `Bruksnummer`. `Prosjektnavn` og `Prosjektnr` er påkrevd og kan ikke være null, tomme eller bare mellomrom. `Tiltakstyper` må inneholde minst én verdi, og hver verdi må være utfylt. `Eiendom` må inneholde minst én eiendom med alle tre matrikkelfeltene. Gårds- og bruksnummer må oppgis som ikke-negative heltall; manglende eller null verdier avvises med 400.
+
+Klienter må sende og lese `Tiltakstyper` som en liste; det tidligere feltet `Tiltakstype` er erstattet. Søkeparameteren `tiltakstype` er fortsatt én verdi og matcher enhver type i prosjektet eller et tilknyttet skjema.
+
+Tiltakstyper sammenlignes som et helt sett: rekkefølge og gjentatte verdier ignoreres. En SHA-256-hash av det normaliserte, sorterte settet (entydig JSON) lagres internt og indekseres for nye prosjekter. Selve settet kontrolleres også ved hashmatch. Migreringen bevarer gamle enkeltverdier som lister; eldre poster uten lagret hash inkluderes i oppslaget og får hashen beregnet ved sammenligning. Manglende eldre tiltakstyper blir en tom liste.
 
 Alle fire opplysninger må samsvare. Ved flere eiendommer er ett felles matrikkelnummer tilstrekkelig, og kommune, gård og bruk må treffe samme eiendom. Feste- og seksjonsnummer inngår ikke i dublettnøkkelen. Tekst sammenlignes uten hensyn til store/små bokstaver og med normaliserte mellomrom og Unicode. Andre felter og lignende navn gir ikke dublett. Ved flere treff returneres ftbid i stigende rekkefølge.
 
@@ -170,7 +174,7 @@ Vellykkede endringer gir 204. Ukjent ftbid gir `V0054`, og erstatning av en eien
 | --- | --- | --- |
 | FtID (eksisterende Ftbid) | `ftid` | Eksakt full identifikator eller de siste åtte sifrene, utvidet med konfigurert GS1-prefiks |
 | Prosjektnavn/tiltaksnavn | `prosjektnavn`, `tiltaksnavn` | Deltreff i samme prosjektnavn; begge filtre må treffe hvis begge oppgis |
-| Tiltakstype | `tiltakstype` | Eksakt prosjektverdi eller tiltakstype fra et tilknyttet skjema |
+| Tiltakstype | `tiltakstype` | En av prosjektets tiltakstyper eller tiltakstype fra et tilknyttet skjema |
 | Ekstern prosjektreferanse | `eksternprosjektreferanse` | Eksakt; bruker eldre `Prosjektnr` som reserve når ekstern referanse mangler |
 | Kommunalt saksnummer | `kommunaltsaksnummer` | Eksakt |
 | Organisasjonsnummer til ansvarlig søker | `ansvarligsokerorganisasjonsnummer` | Eksakt, ni sifre; separat fra `Organisasjonsnummer` for tiltakshaver |

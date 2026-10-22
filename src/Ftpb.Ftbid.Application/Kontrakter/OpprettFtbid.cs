@@ -11,7 +11,7 @@ public sealed class OpprettFtbid
     public string? Organisasjonsnummer { get; set; }
     public string? AnsvarligSokerOrganisasjonsnummer { get; set; }
     public List<Eiendomsdata> Eiendom { get; set; } = [];
-    public string? Tiltakstype { get; set; }
+    public List<string> Tiltakstyper { get; set; } = [];
     public string? Prosjektnavn { get; set; }
     public string? Prosjektnr { get; set; }
     public string? System { get; set; }

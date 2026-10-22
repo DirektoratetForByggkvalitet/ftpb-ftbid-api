@@ -8,7 +8,9 @@ public sealed class Ftbid
     public string? Tiltakshaver { get; set; }
     public string? Organisasjonsnummer { get; set; }
     public string? AnsvarligSokerOrganisasjonsnummer { get; set; }
-    public string? Tiltakstype { get; set; }
+    public List<string> Tiltakstyper { get; set; } = [];
+    // Eldre migrerte poster har null og sammenlignes med beregnet hash.
+    public string? TiltakstyperHash { get; set; }
     public string Ean { get; set; } = "";
     public string Prosjektnavn { get; set; } = "";
     public string NormalisertProsjektnavn { get; set; } = "";
