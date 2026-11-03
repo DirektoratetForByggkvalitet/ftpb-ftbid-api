@@ -89,7 +89,7 @@ API-ruter og JSON-feltnavn er på norsk. Tilknytning bruker `Ftbid` og `Arkivref
 
 ### Eiendomsmodell og oppretting
 
-Ved oppretting må `Eiendom` inneholde **1 til 100 eiendommer**. Eksisterende prosjekter kan ha en tom liste, og siste eiendom kan fortsatt slettes. Hver eiendom inneholder ett `Eiendomsidentifikasjon`-objekt, en `Adresse`-liste med 0 til 100 adresseobjekter, og valgfrie `Bygningsnummer`, `Bolignummer` og `Kommunenavn`. Rekkefølgen bevares. Eiendomsopplysninger har ingen eksterne registeroppslag.
+Ved oppretting må `Eiendom` inneholde **1 til 100 eiendommer**. Eksisterende prosjekter kan ha en tom liste, og siste eiendom kan fortsatt slettes. Hver eiendom inneholder ett `Eiendomsidentifikasjon`-objekt, en `Adresse`-liste med 0 til 100 adresseobjekter, og valgfrie `Bygningsnummer`, `Bolignummer` og `Kommunenavn`. Rekkefølgen bevares. Oppretting og endring av eiendommer bruker lokal validering. Valgfri adresseberikelse fra Matrikkel kjøres separat i bakgrunnen, se nedenfor.
 
 ```json
 {
@@ -292,7 +292,36 @@ Migrationen `InnforEiendomsmodell` oppretter `eiendom` og `eiendomsadresse`. Den
 
 Migrationen kopierer de gamle verdiene til midlertidige tabeller før gamle tabeller og kolonner fjernes. Den nye modellen tillater null eiendommer. Automatisk `Down` støttes ikke, fordi den gamle modellen ikke kan representere eiendomsløse prosjekter eller alle de strukturerte adressefeltene; bruk en sikkerhetskopi ved tilbakeføring. Migrationen er ikke automatisk anvendt av kodeendringen, men Local kjører som før migrasjoner ved neste oppstart.
 
-Det gjøres ingen oppslag mot Kartverkets Matrikkel. Lokal kommune- og formatvalidering beholdes. Regelkodene V0061, V0063–V0066 og V0069 er utgått og gjenbrukes ikke.
+HTTP-endepunktene gjør ingen oppslag mot Kartverkets Matrikkel. Lokal kommune- og formatvalidering beholdes. Bakgrunnsjobben nedenfor kan etterfylle adresser separat. Regelkodene V0061, V0063–V0066 og V0069 er utgått og gjenbrukes ikke.
+
+## Adresseberikelse fra Matrikkel
+
+En valgfri background worker henter adresser for eksisterende eiendomsrader fra Kartverkets Matrikkel SOAP-API, på samme måte som Niregs Matrikkel-integrasjon. Jobben er **deaktivert som standard** og gjør da ingen database- eller Matrikkel-oppslag. API-endepunktene venter ikke på Matrikkel.
+
+Kjør migrasjonen `LeggTilAdresseberikelse` før aktivering. Den legger bare til den nullable statuskolonnen `eiendom.matrikkel_adresser_hentet`; eksisterende adresser endres ikke av migrasjonen. Local bruker fortsatt automatisk migrering ved oppstart. I andre miljøer brukes prosjektets vanlige `--migrer`-kommando som et eget utrullingssteg.
+
+Konfigurer følgende miljøvariabler og start API-et på nytt:
+
+```text
+Adresseberikelse__Aktivert=true
+Matrikkel__BasisUrl=https://nd.matrikkel.no/matrikkelapi/wsapi/v1
+Matrikkel__Brukernavn=<Matrikkel-bruker>
+Matrikkel__Passord=<hemmelighet>
+```
+
+Brukeren må ha lesetilgang til MatrikkelenhetService, AdresseService og StoreService. Legitimasjon lagres i kjøremiljøets hemmelighetshåndtering. Ingen reelle Matrikkel-hemmeligheter følger med prosjektet. `BasisUrl` kan overstyres for et annet SOAP-miljø og må bruke HTTPS. `Matrikkel:TidsavbruddSekunder` er 60 som standard (1–600).
+
+Jobben behandler eiendomsrader i ID-rekkefølge med `Adresseberikelse:Batchstorrelse=50` (1–1000), og venter `PauseMellomOppslagMs=250` (0–60000) mellom eiendomsoppslag. Samme matrikkelnummer gjenbruker oppslaget innenfor én batch. Hele identifikasjonen sendes eksplisitt: kommune, gård, bruk, feste og seksjon, også nullverdier for feste og seksjon. Kommunenummer endres ikke automatisk; historiske eller ugyldige identifikasjoner kan derfor gi null treff eller feil.
+
+Alle returnerte adresser hentes, uten API-inndataenes grense på 100 adresser. StoreService-kall deles i grupper på 100 objekter. Både vegadresser og matrikkeladresser bevares. Vegnavn, husnummer, bokstav, adressetilleggsnavn og postnummer/poststed fylles der opplysningene finnes. Postnummer beholder ledende nuller. Det fylles ikke inn bygningsnummer eller bolignummer fra adresseoppslaget.
+
+Eksisterende adresser beholdes, og nye legges etter siste adresseposisjon. Adresser med samme normaliserte innhold i alle adressefeltene legges ikke inn flere ganger. Lagringen bruker samme PostgreSQL-transaksjonslås som API-ets eiendomsendringer. Eiendommen leses på nytt etter SOAP-oppslaget; resultatet forkastes hvis eiendommen er slettet, har fått nytt matrikkelnummer eller allerede er behandlet av en annen instans.
+
+Status og adresser lagres atomisk per eiendom. Et vellykket oppslag med null adresser merkes også fullført. Ved feil lagres ingen delvise adresser eller fullført-status, og jobben fortsetter med neste eiendom. Etter gjennomgangen kontrolleres nye og feilede rader igjen etter `IntervallMinutter=60` (minst 1). Fullførte rader hoppes over ved omstart. Dette er etterfylling, ikke løpende synkronisering av senere adresseendringer i Matrikkelen. PUT av en eiendom nullstiller dens status, slik at også de nye opplysningene kan berikes.
+
+Sett `Adresseberikelse:Aktivert=false` for å deaktivere jobben. Ved endring i appsettings med konfigurasjonsreload oppdages flagget løpende; et pågående SOAP-oppslag får avslutte, og flagget sjekkes igjen før lagring. Endringer i miljøvariabler krever omstart. Deaktivering sletter ikke adresser eller fremdrift. Logger viser eiendoms-ID, antall treff og nye adresser, samt feil som må følges opp. Jobben er ikke aktivert eller kjørt mot utviklings- eller produksjonsdata som del av implementeringen.
+
+SOAP-proxyen i `Infrastructure/Matrikkel/Generert/Matrikkel.g.cs` er gjenbrukt fra Niregs genererte `Integrations/Matrikkel.cs` (lokal referanse ved commit `fcc28b2`). XML-kontraktene er beholdt; C#-navnerommet er flyttet inn under ftbid og nullable-analyse er slått av i den genererte filen. Integrasjonen bruker WCF-klientbiblioteket `System.ServiceModel.Http`. Se [Kartverkets MatrikkelAPI-dokumentasjon](https://kartverket.github.io/api-dokumentasjon/docs/eiendom/matrikkel/matrikkelen/matrikkelapi/).
 
 ## Referansedata
 

@@ -55,6 +55,10 @@ namespace Ftpb.Ftbid.Infrastructure.Migrasjoner
                         .HasColumnType("character varying(200)")
                         .HasColumnName("kommunenavn");
 
+                    b.Property<DateTimeOffset?>("MatrikkelAdresserHentet")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("matrikkel_adresser_hentet");
+
                     b.Property<int>("Rekkefolge")
                         .HasColumnType("integer")
                         .HasColumnName("rekkefolge");

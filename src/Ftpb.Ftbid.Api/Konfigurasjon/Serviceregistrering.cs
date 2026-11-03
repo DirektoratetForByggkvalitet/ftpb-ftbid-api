@@ -1,4 +1,7 @@
 using Ftpb.Ftbid.Api.Autentisering;
+using Ftpb.Ftbid.Api.Bakgrunn;
+using Ftpb.Ftbid.Application.Matrikkel;
+using Ftpb.Ftbid.Infrastructure.Matrikkel;
 using Ftpb.Ftbid.Application.Konfigurasjon;
 using Ftpb.Ftbid.Application.Lagring;
 using Ftpb.Ftbid.Application.Services;
@@ -35,6 +38,11 @@ public static class Serviceregistrering
         services.AddScoped<IFtbidOppslagService, FtbidOppslagService>();
         services.AddScoped<IFtbidTilknytningService, FtbidTilknytningService>();
         services.AddScoped<IReferansedataImportService, ReferansedataImportService>();
+        services.Configure<MatrikkelInnstillinger>(konfigurasjon.GetSection("Matrikkel"));
+        services.Configure<AdresseberikelseInnstillinger>(konfigurasjon.GetSection("Adresseberikelse"));
+        services.AddScoped<IMatrikkelAdresseoppslag, MatrikkelAdresseoppslag>();
+        services.AddScoped<Adresseberikelse>();
+        services.AddHostedService<AdresseberikelseWorker>();
         return services;
     }
 }

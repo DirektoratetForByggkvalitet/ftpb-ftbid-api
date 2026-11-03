@@ -11,4 +11,6 @@ public sealed class Eiendom
     public string? Bygningsnummer { get; set; }
     public string? Bolignummer { get; set; }
     public string? Kommunenavn { get; set; }
+    /// <summary>Fullført adresseoppslag, også ved null treff. Null betyr at eiendommen venter på berikelse.</summary>
+    public DateTimeOffset? MatrikkelAdresserHentet { get; set; }
 }

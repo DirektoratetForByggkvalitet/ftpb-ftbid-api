@@ -34,6 +34,7 @@ public sealed class PostgresFtbidEiendomslager(FtbidDbContext database) : IFtbid
         gammel.Bolignummer = eiendom.Bolignummer;
         gammel.Kommunenavn = eiendom.Kommunenavn;
         gammel.Adresse = eiendom.Adresse;
+        gammel.MatrikkelAdresserHentet = null;
     }, avbrudd);
 
     /// <inheritdoc />

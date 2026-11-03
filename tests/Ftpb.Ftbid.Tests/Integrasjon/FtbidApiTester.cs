@@ -383,7 +383,7 @@ public sealed class FtbidApiTester(PostgresApiOppsett oppsett)
     [Fact]
     public async Task UtilgjengeligDatabaseGirUsunnHelse()
     {
-        using var fabrikk = oppsett.Fabrikk.WithWebHostBuilder(b => b.ConfigureServices(services =>
+        using var fabrikk = oppsett.Fabrikk.WithWebHostBuilder(b => b.UseSetting("Database:MigrerVedOppstart", "false").ConfigureServices(services =>
         {
             services.RemoveAll<DbContextOptions<FtbidDbContext>>();
             services.AddDbContext<FtbidDbContext>(valg => valg.UseNpgsql("Host=127.0.0.1;Port=1;Database=utilgjengelig;Username=ftbid;Timeout=1"));
@@ -467,7 +467,7 @@ public sealed class FtbidApiTester(PostgresApiOppsett oppsett)
     [Fact]
     public async Task InternFeilSkjulerDatabaseopplysninger()
     {
-        using var fabrikk = oppsett.Fabrikk.WithWebHostBuilder(b => b.ConfigureServices(services =>
+        using var fabrikk = oppsett.Fabrikk.WithWebHostBuilder(b => b.UseSetting("Database:MigrerVedOppstart", "false").ConfigureServices(services =>
         {
             services.RemoveAll<DbContextOptions<FtbidDbContext>>();
             services.AddDbContext<FtbidDbContext>(valg => valg.UseNpgsql("Host=127.0.0.1;Port=1;Database=hemmelig_database;Username=hemmelig_bruker;Timeout=1"));
