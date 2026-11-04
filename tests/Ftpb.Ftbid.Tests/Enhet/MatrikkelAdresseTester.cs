@@ -10,6 +10,44 @@ namespace Ftpb.Ftbid.Tests.Enhet;
 public sealed class MatrikkelAdresseTester
 {
     [Fact]
+    public async Task AdresserViaByggTasMedSelvOmEiendommenHarDirekteAdresse()
+    {
+        // Regresjon: 4602/203/17 har én direkte adresse, men to adresser via bygg.
+        var resultat = await MatrikkelAdresseoppslag.HentAlleAdresseIdsAsync(
+            () => Task.FromResult<AdresseId[]>([new VegadresseId { value = 67280564 }]),
+            () => Task.FromResult<ByggId[]>([new BygningId { value = 67287114 }, new BygningId { value = 67287120 }]),
+            _ => Task.FromResult<ByggIdTilAdresseIdsMapEntry[]>([
+                new() { key = new BygningId { value = 67287114 }, value = [new VegadresseId { value = 67280564 }, new VegadresseId { value = 362424659 }] },
+                new() { key = new BygningId { value = 67287120 }, value = [new VegadresseId { value = 67280564 }] }
+            ]));
+        Assert.Equal([67280564L, 362424659L], resultat.Select(a => a.value));
+    }
+
+    [Fact]
+    public async Task TomDirekteAdresselisteHindrerIkkeOppslagViaByggOgTomBygningErGyldig()
+    {
+        var resultat = await MatrikkelAdresseoppslag.HentAlleAdresseIdsAsync(
+            () => Task.FromResult<AdresseId[]>([]),
+            () => Task.FromResult<ByggId[]>([new BygningId { value = 1 }, new BygningId { value = 2 }]),
+            _ => Task.FromResult<ByggIdTilAdresseIdsMapEntry[]>([
+                new() { key = new BygningId { value = 1 }, value = [] },
+                new() { key = new BygningId { value = 2 }, value = [new VegadresseId { value = 3 }] }
+            ]));
+        Assert.Equal(3, Assert.Single(resultat).value);
+    }
+
+    [Fact]
+    public async Task FeilEllerUfullstendigeBygningsoppslagGirIkkeEtDelvisVellykketAdresseoppslag()
+    {
+        Task<AdresseId[]> Direkte() => Task.FromResult<AdresseId[]>([new VegadresseId { value = 10 }]);
+        Task<ByggId[]> Bygg() => Task.FromResult<ByggId[]>([new BygningId { value = 1 }]);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => MatrikkelAdresseoppslag.HentAlleAdresseIdsAsync(
+            Direkte, Bygg, _ => Task.FromResult<ByggIdTilAdresseIdsMapEntry[]>([])));
+        await Assert.ThrowsAsync<HttpRequestException>(() => MatrikkelAdresseoppslag.HentAlleAdresseIdsAsync(
+            Direkte, Bygg, _ => throw new HttpRequestException("Midlertidig feil")));
+    }
+
+    [Fact]
     public void JobbenErDeaktivertSomStandard() => Assert.False(new AdresseberikelseInnstillinger().Aktivert);
 
     [Theory]

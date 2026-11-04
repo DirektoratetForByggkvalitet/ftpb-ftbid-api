@@ -1,0 +1,421 @@
+# Matrikkel SOAP-oppslag i Rider. Samme endepunkter og MatrikkelContext som MatrikkelAdresseoppslag.cs.
+# Endre matrikkelnummeret nedenfor. Kjør 1, 2a, 2b, 2c, 3 og 4 i rekkefølge (eller Run All Requests).
+# Velg miljøet "matrikkel" i Rider. Basic Auth hentes fra http-client.private.env.json.
+# Kall 4 skriver til slutt en formatert adresseliste i Response Handler-outputtet.
+# Ingen ftbid-API eller bakgrunnsjobb må kjøre. Kallene leser bare Matrikkel og skriver ikke til databasen.
+# Kall 2a finner direkte adresser. Kall 2b–2c tar også med adresser via bygg/bruksenheter.
+# Ved null adresser etter kall 2c kan kall 3–4 utelates.
+# Rider-dokumentasjon: https://www.jetbrains.com/help/rider/Http_client_in__product__code_editor.html
+
+@matrikkelBasisUrl = https://nd.matrikkel.no/matrikkelapi/wsapi/v1
+@kommunenummer = 4602
+@gaardsnummer = 203
+@bruksnummer = 17
+@festenummer = 0
+@seksjonsnummer = 0
+
+### 1. Finn matrikkelenhet fra hele matrikkelnummeret
+< {%
+    // Fjern tidligere svar slik at en feil ikke gjenbruker ID-er fra et gammelt oppslag.
+    client.global.clear("matrikkelEnhetId");
+    client.global.clear("matrikkelAdresser");
+    client.global.clear("matrikkelByggIdsXml");
+    client.global.clear("matrikkelDirekteAdresseIdsXml");
+    client.global.clear("matrikkelAdresseIdsXml");
+    client.global.clear("matrikkelReferanseIdsXml");
+%}
+POST {{matrikkelBasisUrl}}/MatrikkelenhetServiceWS
+Authorization: Basic {{matrikkelBrukernavn}} {{matrikkelPassord}}
+Content-Type: text/xml; charset=utf-8
+SOAPAction: "http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/service/matrikkelenhet/MatrikkelenhetService/findMatrikkelenhetRequest"
+
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
+               xmlns:s="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/service/matrikkelenhet"
+               xmlns:d="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/domain"
+               xmlns:m="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/domain/matrikkelenhet"
+               xmlns:c="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/domain/kommune"
+               xmlns:b="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/domain/bygning"
+               xmlns:a="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/domain/adresse"
+               xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <soap:Body>
+    <s:findMatrikkelenhet>
+      <s:matrikkelenhetIdent>
+        <m:kommuneIdent><c:kommunenummer>{{kommunenummer}}</c:kommunenummer></m:kommuneIdent>
+        <m:gardsnummer>{{gaardsnummer}}</m:gardsnummer>
+        <m:bruksnummer>{{bruksnummer}}</m:bruksnummer>
+        <m:festenummer>{{festenummer}}</m:festenummer>
+        <m:seksjonsnummer>{{seksjonsnummer}}</m:seksjonsnummer>
+      </s:matrikkelenhetIdent>
+      <s:matrikkelContext>
+        <d:locale>no_NO</d:locale>
+        <d:brukOriginaleKoordinater>true</d:brukOriginaleKoordinater>
+        <d:koordinatsystemKodeId><d:value>84</d:value></d:koordinatsystemKodeId>
+        <d:systemVersion>trunk</d:systemVersion>
+        <d:klientIdentifikasjon>Ftpb.Ftbid</d:klientIdentifikasjon>
+        <d:snapshotVersion><d:timestamp>9999-01-01T00:00:00</d:timestamp></d:snapshotVersion>
+      </s:matrikkelContext>
+    </s:findMatrikkelenhet>
+  </soap:Body>
+</soap:Envelope>
+
+> {%
+    function lokal(node) { return node.nodeName.split(":").pop(); }
+    function elementer(rot, navn) {
+        return Array.from(rot.getElementsByTagName("*")).filter(n => lokal(n) === navn);
+    }
+    client.assert(response.status === 200, "SOAP-kallet feilet. Se HTTP-status og SOAP Fault i svaret.");
+    const xml = typeof response.body === "string"
+        ? new DOMParser().parseFromString(response.body, "application/xml") : response.body;
+    client.assert(elementer(xml, "Fault").length === 0, "Matrikkel returnerte en SOAP Fault.");
+    const retur = elementer(xml, "return")[0];
+    const id = retur && elementer(retur, "value")[0]?.textContent.trim();
+    client.assert(/^\d+$/.test(id || ""), "Ingen matrikkelenhet funnet for matrikkelnummeret.");
+    client.global.set("matrikkelEnhetId", id);
+    client.log("Matrikkelenhet-ID: " + id);
+%}
+
+### 2a. Finn direkte adresse-ID-er for matrikkelenheten
+POST {{matrikkelBasisUrl}}/AdresseServiceWS
+Authorization: Basic {{matrikkelBrukernavn}} {{matrikkelPassord}}
+Content-Type: text/xml; charset=utf-8
+SOAPAction: "http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/service/adresse/AdresseService/findAdresserForMatrikkelenhetRequest"
+
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
+               xmlns:s="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/service/adresse"
+               xmlns:d="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/domain"
+               xmlns:m="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/domain/matrikkelenhet"
+               xmlns:c="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/domain/kommune"
+               xmlns:b="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/domain/bygning"
+               xmlns:a="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/domain/adresse"
+               xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <soap:Body>
+    <s:findAdresserForMatrikkelenhet>
+      <s:matrikkelenhetId><d:value>{{matrikkelEnhetId}}</d:value></s:matrikkelenhetId>
+      <s:matrikkelContext>
+        <d:locale>no_NO</d:locale>
+        <d:brukOriginaleKoordinater>true</d:brukOriginaleKoordinater>
+        <d:koordinatsystemKodeId><d:value>84</d:value></d:koordinatsystemKodeId>
+        <d:systemVersion>trunk</d:systemVersion>
+        <d:klientIdentifikasjon>Ftpb.Ftbid</d:klientIdentifikasjon>
+        <d:snapshotVersion><d:timestamp>9999-01-01T00:00:00</d:timestamp></d:snapshotVersion>
+      </s:matrikkelContext>
+    </s:findAdresserForMatrikkelenhet>
+  </soap:Body>
+</soap:Envelope>
+
+> {%
+    function lokal(node) { return node.nodeName.split(":").pop(); }
+    function elementer(rot, navn) {
+        return Array.from(rot.getElementsByTagName("*")).filter(n => lokal(n) === navn);
+    }
+    client.assert(response.status === 200, "SOAP-kallet feilet. Se HTTP-status og SOAP Fault i svaret.");
+    const xml = typeof response.body === "string"
+        ? new DOMParser().parseFromString(response.body, "application/xml") : response.body;
+    client.assert(elementer(xml, "Fault").length === 0, "Matrikkel returnerte en SOAP Fault.");
+    function idXml(node, standardtype, typeprefiks = "a", itemprefiks = "d") {
+        const verdi = elementer(node, "value")[0]?.textContent.trim();
+        client.assert(/^\d+$/.test(verdi || ""), "Ugyldig objekt-ID fra Matrikkel.");
+        // Rider har en begrenset DOM. Les attributtet med XPath, uavhengig av XML-prefiks.
+        const typeverdi = xpath(xml, "string((//*[local-name()='" + lokal(node) +
+            "' and *[local-name()='value' and normalize-space(.)='" + verdi +
+            "']]/@*[local-name()='type' and namespace-uri()='http://www.w3.org/2001/XMLSchema-instance'])[1])");
+        const typenavn = Array.isArray(typeverdi) ? typeverdi[0] : typeverdi;
+        const type = (String(typenavn || "") || standardtype).split(":").pop();
+        client.assert(/^[A-Za-z_][A-Za-z0-9_]*$/.test(type), "Ugyldig ID-type fra Matrikkel.");
+        return `<${itemprefiks}:item xsi:type="${typeprefiks}:${type}"><d:value>${verdi}</d:value></${itemprefiks}:item>`;
+    }
+    client.global.clear("matrikkelAdresseIdsXml");
+    client.global.clear("matrikkelReferanseIdsXml");
+    const retur = elementer(xml, "return")[0];
+    client.assert(retur, "Svaret mangler adresselisten.");
+    const ider = elementer(retur, "item");
+    const direkteXml = ider.map(n => idXml(n, "AdresseId")).join("\n");
+    client.global.set("matrikkelDirekteAdresseIdsXml", direkteXml);
+    client.global.set("matrikkelAdresseIdsXml", direkteXml);
+    client.log("Antall direkte adresser: " + ider.length + ". Fortsett med kall 2b og 2c for adresser via bygg.");
+%}
+
+### 2b. Finn alle bygg knyttet til matrikkelenheten
+POST {{matrikkelBasisUrl}}/BygningServiceWS
+Authorization: Basic {{matrikkelBrukernavn}} {{matrikkelPassord}}
+Content-Type: text/xml; charset=utf-8
+SOAPAction: "http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/service/bygning/BygningService/findByggForMatrikkelenhetRequest"
+
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
+               xmlns:s="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/service/bygning"
+               xmlns:d="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/domain"
+               xmlns:m="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/domain/matrikkelenhet"
+               xmlns:c="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/domain/kommune"
+               xmlns:b="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/domain/bygning"
+               xmlns:a="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/domain/adresse"
+               xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <soap:Body>
+    <s:findByggForMatrikkelenhet>
+      <s:matrikkelenhetId><d:value>{{matrikkelEnhetId}}</d:value></s:matrikkelenhetId>
+      <s:matrikkelContext>
+        <d:locale>no_NO</d:locale>
+        <d:brukOriginaleKoordinater>true</d:brukOriginaleKoordinater>
+        <d:koordinatsystemKodeId><d:value>84</d:value></d:koordinatsystemKodeId>
+        <d:systemVersion>trunk</d:systemVersion>
+        <d:klientIdentifikasjon>Ftpb.Ftbid</d:klientIdentifikasjon>
+        <d:snapshotVersion><d:timestamp>9999-01-01T00:00:00</d:timestamp></d:snapshotVersion>
+      </s:matrikkelContext>
+    </s:findByggForMatrikkelenhet>
+  </soap:Body>
+</soap:Envelope>
+
+> {%
+    function lokal(node) { return node.nodeName.split(":").pop(); }
+    function elementer(rot, navn) {
+        return Array.from(rot.getElementsByTagName("*")).filter(n => lokal(n) === navn);
+    }
+    client.assert(response.status === 200, "SOAP-kallet feilet. Se HTTP-status og SOAP Fault i svaret.");
+    const xml = typeof response.body === "string"
+        ? new DOMParser().parseFromString(response.body, "application/xml") : response.body;
+    client.assert(elementer(xml, "Fault").length === 0, "Matrikkel returnerte en SOAP Fault.");
+    function idXml(node, standardtype, typeprefiks = "a", itemprefiks = "d") {
+        const verdi = elementer(node, "value")[0]?.textContent.trim();
+        client.assert(/^\d+$/.test(verdi || ""), "Ugyldig objekt-ID fra Matrikkel.");
+        // Rider har en begrenset DOM. Les attributtet med XPath, uavhengig av XML-prefiks.
+        const typeverdi = xpath(xml, "string((//*[local-name()='" + lokal(node) +
+            "' and *[local-name()='value' and normalize-space(.)='" + verdi +
+            "']]/@*[local-name()='type' and namespace-uri()='http://www.w3.org/2001/XMLSchema-instance'])[1])");
+        const typenavn = Array.isArray(typeverdi) ? typeverdi[0] : typeverdi;
+        const type = (String(typenavn || "") || standardtype).split(":").pop();
+        client.assert(/^[A-Za-z_][A-Za-z0-9_]*$/.test(type), "Ugyldig ID-type fra Matrikkel.");
+        return `<${itemprefiks}:item xsi:type="${typeprefiks}:${type}"><d:value>${verdi}</d:value></${itemprefiks}:item>`;
+    }
+    const retur = elementer(xml, "return")[0];
+    client.assert(retur, "Svaret mangler bygningslisten.");
+    const bygg = elementer(retur, "item");
+    client.global.set("matrikkelByggIdsXml", bygg.map(n => idXml(n, "ByggId", "b", "b")).join("\n"));
+    client.log("Antall bygg: " + bygg.length);
+%}
+
+### 2c. Finn adresser via bygg og foren med de direkte adressene
+# Adresser kan være knyttet til eiendommen via bygg/bruksenheter selv om adresseobjektets
+# direkte matrikkelenhetId peker på en annen eiendom. Duplikater tas med bare én gang.
+POST {{matrikkelBasisUrl}}/AdresseServiceWS
+Authorization: Basic {{matrikkelBrukernavn}} {{matrikkelPassord}}
+Content-Type: text/xml; charset=utf-8
+SOAPAction: "http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/service/adresse/AdresseService/findAdresserForByggListRequest"
+
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
+               xmlns:s="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/service/adresse"
+               xmlns:d="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/domain"
+               xmlns:m="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/domain/matrikkelenhet"
+               xmlns:c="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/domain/kommune"
+               xmlns:b="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/domain/bygning"
+               xmlns:a="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/domain/adresse"
+               xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <soap:Body>
+    <s:findAdresserForByggList>
+      <s:byggIds>
+        {{matrikkelByggIdsXml}}
+      </s:byggIds>
+      <s:matrikkelContext>
+        <d:locale>no_NO</d:locale>
+        <d:brukOriginaleKoordinater>true</d:brukOriginaleKoordinater>
+        <d:koordinatsystemKodeId><d:value>84</d:value></d:koordinatsystemKodeId>
+        <d:systemVersion>trunk</d:systemVersion>
+        <d:klientIdentifikasjon>Ftpb.Ftbid</d:klientIdentifikasjon>
+        <d:snapshotVersion><d:timestamp>9999-01-01T00:00:00</d:timestamp></d:snapshotVersion>
+      </s:matrikkelContext>
+    </s:findAdresserForByggList>
+  </soap:Body>
+</soap:Envelope>
+
+> {%
+    function lokal(node) { return node.nodeName.split(":").pop(); }
+    function elementer(rot, navn) {
+        return Array.from(rot.getElementsByTagName("*")).filter(n => lokal(n) === navn);
+    }
+    client.assert(response.status === 200, "SOAP-kallet feilet. Se HTTP-status og SOAP Fault i svaret.");
+    const xml = typeof response.body === "string"
+        ? new DOMParser().parseFromString(response.body, "application/xml") : response.body;
+    client.assert(elementer(xml, "Fault").length === 0, "Matrikkel returnerte en SOAP Fault.");
+    function idXml(node, standardtype, typeprefiks = "a", itemprefiks = "d") {
+        const verdi = elementer(node, "value")[0]?.textContent.trim();
+        client.assert(/^\d+$/.test(verdi || ""), "Ugyldig objekt-ID fra Matrikkel.");
+        // Rider har en begrenset DOM. Les attributtet med XPath, uavhengig av XML-prefiks.
+        const typeverdi = xpath(xml, "string((//*[local-name()='" + lokal(node) +
+            "' and *[local-name()='value' and normalize-space(.)='" + verdi +
+            "']]/@*[local-name()='type' and namespace-uri()='http://www.w3.org/2001/XMLSchema-instance'])[1])");
+        const typenavn = Array.isArray(typeverdi) ? typeverdi[0] : typeverdi;
+        const type = (String(typenavn || "") || standardtype).split(":").pop();
+        client.assert(/^[A-Za-z_][A-Za-z0-9_]*$/.test(type), "Ugyldig ID-type fra Matrikkel.");
+        return `<${itemprefiks}:item xsi:type="${typeprefiks}:${type}"><d:value>${verdi}</d:value></${itemprefiks}:item>`;
+    }
+    const retur = elementer(xml, "return")[0];
+    client.assert(retur, "Svaret mangler bygningsadressene.");
+    const byggAdresser = elementer(retur, "item").filter(n => lokal(n.parentNode) === "value");
+    const direkteXml = client.global.get("matrikkelDirekteAdresseIdsXml") || "";
+    const samlet = direkteXml.split("\n").filter(Boolean).concat(byggAdresser.map(n => idXml(n, "AdresseId")));
+    const unike = new Map();
+    for (const adresse of samlet) {
+        const id = adresse.match(/<d:value>(\d+)<\/d:value>/)[1];
+        unike.set(id, adresse);
+    }
+    client.global.set("matrikkelAdresseIdsXml", Array.from(unike.values()).join("\n"));
+    client.global.clear("matrikkelReferanseIdsXml");
+    client.log("Samlet antall unike adresser (direkte + via bygg): " + unike.size);
+    if (unike.size === 0) client.log("Ingen adresser funnet; kall 3 og 4 kan utelates.");
+%}
+
+### 3. Hent alle adresseobjektene (vegadresser og matrikkeladresser)
+# Husnummer, bokstav, adressetilleggsnavn, vegId og kretsIds finnes i dette svaret.
+POST {{matrikkelBasisUrl}}/StoreServiceWS
+Authorization: Basic {{matrikkelBrukernavn}} {{matrikkelPassord}}
+Content-Type: text/xml; charset=utf-8
+SOAPAction: "http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/service/store/StoreService/getObjectsRequest"
+
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
+               xmlns:s="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/service/store"
+               xmlns:d="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/domain"
+               xmlns:m="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/domain/matrikkelenhet"
+               xmlns:c="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/domain/kommune"
+               xmlns:b="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/domain/bygning"
+               xmlns:a="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/domain/adresse"
+               xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <soap:Body>
+    <s:getObjects>
+      <s:ids>
+        {{matrikkelAdresseIdsXml}}
+      </s:ids>
+      <s:matrikkelContext>
+        <d:locale>no_NO</d:locale>
+        <d:brukOriginaleKoordinater>true</d:brukOriginaleKoordinater>
+        <d:koordinatsystemKodeId><d:value>84</d:value></d:koordinatsystemKodeId>
+        <d:systemVersion>trunk</d:systemVersion>
+        <d:klientIdentifikasjon>Ftpb.Ftbid</d:klientIdentifikasjon>
+        <d:snapshotVersion><d:timestamp>9999-01-01T00:00:00</d:timestamp></d:snapshotVersion>
+      </s:matrikkelContext>
+    </s:getObjects>
+  </soap:Body>
+</soap:Envelope>
+
+> {%
+    function lokal(node) { return node.nodeName.split(":").pop(); }
+    function elementer(rot, navn) {
+        return Array.from(rot.getElementsByTagName("*")).filter(n => lokal(n) === navn);
+    }
+    client.assert(response.status === 200, "SOAP-kallet feilet. Se HTTP-status og SOAP Fault i svaret.");
+    const xml = typeof response.body === "string"
+        ? new DOMParser().parseFromString(response.body, "application/xml") : response.body;
+    client.assert(elementer(xml, "Fault").length === 0, "Matrikkel returnerte en SOAP Fault.");
+    function idXml(node, standardtype, typeprefiks = "a", itemprefiks = "d") {
+        const verdi = elementer(node, "value")[0]?.textContent.trim();
+        client.assert(/^\d+$/.test(verdi || ""), "Ugyldig objekt-ID fra Matrikkel.");
+        // Rider har en begrenset DOM. Les attributtet med XPath, uavhengig av XML-prefiks.
+        const typeverdi = xpath(xml, "string((//*[local-name()='" + lokal(node) +
+            "' and *[local-name()='value' and normalize-space(.)='" + verdi +
+            "']]/@*[local-name()='type' and namespace-uri()='http://www.w3.org/2001/XMLSchema-instance'])[1])");
+        const typenavn = Array.isArray(typeverdi) ? typeverdi[0] : typeverdi;
+        const type = (String(typenavn || "") || standardtype).split(":").pop();
+        client.assert(/^[A-Za-z_][A-Za-z0-9_]*$/.test(type), "Ugyldig ID-type fra Matrikkel.");
+        return `<${itemprefiks}:item xsi:type="${typeprefiks}:${type}"><d:value>${verdi}</d:value></${itemprefiks}:item>`;
+    }
+    client.global.clear("matrikkelReferanseIdsXml");
+    function tekst(node, navn) { return elementer(node, navn)[0]?.textContent.trim() || ""; }
+    function id(node, navn) {
+        const felt = elementer(node, navn)[0];
+        return felt ? tekst(felt, "value") : "";
+    }
+    const adresser = elementer(xml, "item").filter(n => lokal(n.parentNode) === "return").map(n => ({
+        id: id(n, "id"), vegId: id(n, "vegId"), matrikkelenhetId: id(n, "matrikkelenhetId"),
+        nummer: tekst(n, "nummer"), bokstav: tekst(n, "bokstav"), undernummer: tekst(n, "undernummer"),
+        tillegg: tekst(n, "adressetilleggsnavn"),
+        kretsIds: elementer(n, "kretsIds").flatMap(k => elementer(k, "item").map(i => tekst(i, "value")))
+    }));
+    client.global.set("matrikkelAdresser", JSON.stringify(adresser));
+    const referanser = elementer(xml, "vegId").map(n => idXml(n, "VegId"));
+    // Matrikkeladresser skal vises med adressens egen matrikkelidentifikasjon.
+    for (const n of elementer(xml, "item").filter(n => lokal(n.parentNode) === "return" && !id(n, "vegId"))) {
+        const enhet = elementer(n, "matrikkelenhetId")[0];
+        if (enhet) referanser.push(idXml(enhet, "MatrikkelenhetId", "m"));
+    }
+    for (const kretsliste of elementer(xml, "kretsIds")) {
+        for (const krets of elementer(kretsliste, "item")) referanser.push(idXml(krets, "KretsId"));
+    }
+    const unike = Array.from(new Set(referanser));
+    if (unike.length > 0) client.global.set("matrikkelReferanseIdsXml", unike.join("\n"));
+    client.log("Adresseobjektene finnes i XML-svaret. Antall veg-/kretsreferanser: " + unike.length);
+    if (unike.length === 0) client.log("Ingen veg-/kretsreferanser; kall 4 kan utelates.");
+%}
+
+### 4. Hent referansedata og skriv ut formaterte adresser
+# Koble Veg.id til vegId i kall 3. Postnummeromrade.id kobles til adressens kretsIds.
+# Veg.adressenavn er gatenavn. Postnummeromrade.kretsnummer/kretsnavn er postnummer/poststed.
+# Postnummer er heltall i SOAP-svaret; 123 skal for eksempel leses som "0123".
+POST {{matrikkelBasisUrl}}/StoreServiceWS
+Authorization: Basic {{matrikkelBrukernavn}} {{matrikkelPassord}}
+Content-Type: text/xml; charset=utf-8
+SOAPAction: "http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/service/store/StoreService/getObjectsRequest"
+
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
+               xmlns:s="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/service/store"
+               xmlns:d="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/domain"
+               xmlns:m="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/domain/matrikkelenhet"
+               xmlns:c="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/domain/kommune"
+               xmlns:b="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/domain/bygning"
+               xmlns:a="http://matrikkel.statkart.no/matrikkelapi/wsapi/v1/domain/adresse"
+               xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <soap:Body>
+    <s:getObjects>
+      <s:ids>
+        {{matrikkelReferanseIdsXml}}
+      </s:ids>
+      <s:matrikkelContext>
+        <d:locale>no_NO</d:locale>
+        <d:brukOriginaleKoordinater>true</d:brukOriginaleKoordinater>
+        <d:koordinatsystemKodeId><d:value>84</d:value></d:koordinatsystemKodeId>
+        <d:systemVersion>trunk</d:systemVersion>
+        <d:klientIdentifikasjon>Ftpb.Ftbid</d:klientIdentifikasjon>
+        <d:snapshotVersion><d:timestamp>9999-01-01T00:00:00</d:timestamp></d:snapshotVersion>
+      </s:matrikkelContext>
+    </s:getObjects>
+  </soap:Body>
+</soap:Envelope>
+
+> {%
+    function lokal(node) { return node.nodeName.split(":").pop(); }
+    function elementer(rot, navn) {
+        return Array.from(rot.getElementsByTagName("*")).filter(n => lokal(n) === navn);
+    }
+    client.assert(response.status === 200, "SOAP-kallet feilet. Se HTTP-status og SOAP Fault i svaret.");
+    const xml = typeof response.body === "string"
+        ? new DOMParser().parseFromString(response.body, "application/xml") : response.body;
+    client.assert(elementer(xml, "Fault").length === 0, "Matrikkel returnerte en SOAP Fault.");
+    function tekst(node, navn) { return elementer(node, navn)[0]?.textContent.trim() || ""; }
+    const lagret = client.global.get("matrikkelAdresser");
+    client.assert(lagret, "Kjør kall 3 først for å hente adresseobjektene.");
+    const objekter = new Map();
+    for (const n of elementer(xml, "item").filter(n => lokal(n.parentNode) === "return")) {
+        const id = tekst(elementer(n, "id")[0], "value");
+        const typeverdi = xpath(xml, "string((//*[local-name()='return']/*[local-name()='item']" +
+            "[*[local-name()='id']/*[local-name()='value']='" + id + "']" +
+            "/@*[local-name()='type' and namespace-uri()='http://www.w3.org/2001/XMLSchema-instance'])[1])");
+        const type = String((Array.isArray(typeverdi) ? typeverdi[0] : typeverdi) || "").split(":").pop();
+        objekter.set(id, { type, gatenavn: tekst(n, "adressenavn"),
+            postnummer: tekst(n, "kretsnummer"), poststed: tekst(n, "kretsnavn"),
+            gard: tekst(n, "gardsnummer"), bruk: tekst(n, "bruksnummer"), feste: tekst(n, "festenummer") });
+    }
+    const linjer = JSON.parse(lagret).map(a => {
+        let linje;
+        if (a.vegId) {
+            const veg = objekter.get(a.vegId);
+            client.assert(veg?.gatenavn, "Mangler vegnavn for adresse-ID " + a.id);
+            linje = [veg.gatenavn, a.nummer + a.bokstav].filter(Boolean).join(" ");
+        } else {
+            const enhet = objekter.get(a.matrikkelenhetId);
+            client.assert(enhet?.gard && enhet?.bruk, "Mangler matrikkelidentifikasjon for adresse-ID " + a.id);
+            linje = enhet.gard + "/" + enhet.bruk + "/" + (enhet.feste || "0");
+            if (a.undernummer && a.undernummer !== "0") linje += "-" + a.undernummer;
+        }
+        if (a.tillegg) linje += " (" + a.tillegg + ")";
+        const post = a.kretsIds.map(id => objekter.get(id)).find(k => k?.type === "Postnummeromrade");
+        if (post) linje += ", " + post.postnummer.padStart(4, "0") + " " + post.poststed;
+        return linje;
+    }).sort((a, b) => a.localeCompare(b));
+    client.log("Adresser (" + linjer.length + "):\n" + linjer.map((linje, i) => (i + 1) + ". " + linje).join("\n"));
+%}

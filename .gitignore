@@ -37,3 +37,6 @@ nunit-*.xml
 *.user
 *.suo
 .DS_Store
+
+# Lokal legitimasjon for Riders HTTP-klient.
+http-client.private.env.json

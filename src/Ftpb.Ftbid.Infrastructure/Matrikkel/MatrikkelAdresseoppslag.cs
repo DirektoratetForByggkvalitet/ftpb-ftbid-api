@@ -26,11 +26,13 @@ public sealed class MatrikkelAdresseoppslag(IOptionsMonitor<MatrikkelInnstilling
         var basis = valg.BasisUrl.TrimEnd('/');
         var enheter = new MatrikkelenhetServiceClient(binding, new EndpointAddress(basis + "/MatrikkelenhetServiceWS"));
         var adresser = new AdresseServiceClient(binding, new EndpointAddress(basis + "/AdresseServiceWS"));
+        var bygninger = new BygningServiceClient(binding, new EndpointAddress(basis + "/BygningServiceWS"));
         var lager = new StoreServiceClient(binding, new EndpointAddress(basis + "/StoreServiceWS"));
         SettLegitimasjon(enheter, valg);
         SettLegitimasjon(adresser, valg);
+        SettLegitimasjon(bygninger, valg);
         SettLegitimasjon(lager, valg);
-        using var registrering = avbrudd.Register(() => { enheter.Abort(); adresser.Abort(); lager.Abort(); });
+        using var registrering = avbrudd.Register(() => { enheter.Abort(); adresser.Abort(); bygninger.Abort(); lager.Abort(); });
         try
         {
             avbrudd.ThrowIfCancellationRequested();
@@ -43,25 +45,59 @@ public sealed class MatrikkelAdresseoppslag(IOptionsMonitor<MatrikkelInnstilling
             };
             var id = await enheter.findMatrikkelenhetAsync(LagIdent(identifikasjon), kontekst).WaitAsync(avbrudd);
             if (id is null) return [];
-            var treff = await adresser.findAdresserForMatrikkelenhetAsync(id, kontekst).WaitAsync(avbrudd);
-            var adresseIds = treff.@return ?? throw new InvalidOperationException("Matrikkel returnerte ingen adresseliste.");
+            var adresseIds = await HentAlleAdresseIdsAsync(
+                async () => (await adresser.findAdresserForMatrikkelenhetAsync(id, kontekst).WaitAsync(avbrudd)).@return,
+                async () => (await bygninger.findByggForMatrikkelenhetAsync(id, kontekst).WaitAsync(avbrudd)).@return,
+                async byggIds => (await adresser.findAdresserForByggListAsync(byggIds, kontekst).WaitAsync(avbrudd)).@return);
             var adresseobjekter = await HentObjekterAsync(lager, adresseIds, kontekst, avbrudd);
             var alleAdresser = adresseobjekter.Select(o => o as Adresse ??
                 throw new InvalidOperationException("Matrikkel returnerte et ukjent adresseobjekt.")).ToArray();
             var referanser = alleAdresser.OfType<Vegadresse>().Select(a => (MatrikkelBubbleId)a.vegId)
-                .Concat(alleAdresser.SelectMany(a => a.kretsIds ?? []).Cast<MatrikkelBubbleId>()).ToArray();
+                .Concat(alleAdresser.SelectMany(a => a.kretsIds ?? []).Cast<MatrikkelBubbleId>())
+                .Concat(alleAdresser.OfType<Matrikkeladresse>().Select(a => (MatrikkelBubbleId)a.matrikkelenhetId)).ToArray();
             var objekter = await HentObjekterAsync(lager, referanser, kontekst, avbrudd);
             var veger = objekter.OfType<Veg>().ToDictionary(v => v.id.value);
             var postomrader = objekter.OfType<Postnummeromrade>().ToDictionary(p => p.id.value);
-            return alleAdresser.OrderBy(a => a.id.value).Select(a => TilAdresse(a, identifikasjon, veger, postomrader)).ToArray();
+            var adresseenheter = objekter.OfType<Matrikkelenhet>().ToDictionary(e => e.id.value);
+            return alleAdresser.OrderBy(a => a.id.value).Select(a =>
+            {
+                // En adresse via et bygg kan ha sin direkte matrikkeltilknytning på en annen eiendom.
+                var adresseident = identifikasjon;
+                if (a is Matrikkeladresse)
+                {
+                    var nummer = adresseenheter[a.matrikkelenhetId.value].matrikkelnummer;
+                    adresseident = adresseident with { Gaardsnummer = nummer.gardsnummer,
+                        Bruksnummer = nummer.bruksnummer, Festenummer = nummer.festenummer };
+                }
+                return TilAdresse(a, adresseident, veger, postomrader);
+            }).ToArray();
         }
         finally
         {
             // Abort frigjør også feilslåtte kanaler uten at Close skjuler den opprinnelige feilen.
             enheter.Abort();
             adresser.Abort();
+            bygninger.Abort();
             lager.Abort();
         }
+    }
+
+    /// <summary>Forener direkte adresser med adresser koblet via eiendommens bygg og bruksenheter.</summary>
+    internal static async Task<AdresseId[]> HentAlleAdresseIdsAsync(Func<Task<AdresseId[]>> hentDirekte,
+        Func<Task<ByggId[]>> hentBygg, Func<ByggId[], Task<ByggIdTilAdresseIdsMapEntry[]>> hentByggAdresser)
+    {
+        var direkte = await hentDirekte() ?? throw new InvalidOperationException("Matrikkel returnerte ingen adresseliste.");
+        var bygg = await hentBygg() ?? throw new InvalidOperationException("Matrikkel returnerte ingen bygningsliste.");
+        var resultat = new List<AdresseId>(direkte);
+        foreach (var del in bygg.DistinctBy(b => b.value).Chunk(100))
+        {
+            var svar = await hentByggAdresser(del) ?? throw new InvalidOperationException("Matrikkel returnerte ingen bygningsadresser.");
+            var mottatt = svar.Select(s => s.key.value).ToHashSet();
+            if (del.Any(b => !mottatt.Contains(b.value)) || svar.Any(s => s.value is null))
+                throw new InvalidOperationException("Matrikkel returnerte et ufullstendig sett med bygningsadresser.");
+            resultat.AddRange(svar.SelectMany(s => s.value));
+        }
+        return resultat.DistinctBy(a => a.value).OrderBy(a => a.value).ToArray();
     }
 
     internal static MatrikkelenhetIdent LagIdent(Eiendomsidentifikasjon ident) => new()
