@@ -6,7 +6,7 @@ using Microsoft.Extensions.Options;
 
 namespace Ftpb.Ftbid.Api.Autentisering;
 
-/// <summary>Krever kun et Bearer-token i Local, uten å lese eller validere tokeninnholdet.</summary>
+/// <summary>Krever kun et Bearer-token i Local og Development, uten å lese eller validere tokeninnholdet.</summary>
 public sealed class LokaltMaskinportenToken(IOptionsMonitor<AuthenticationSchemeOptions> valg,
     ILoggerFactory logger, UrlEncoder koder) : AuthenticationHandler<AuthenticationSchemeOptions>(valg, logger, koder)
 {
@@ -18,7 +18,7 @@ public sealed class LokaltMaskinportenToken(IOptionsMonitor<AuthenticationScheme
         if (verdier.Count != 1 || !AuthenticationHeaderValue.TryParse(verdier[0], out var header) ||
             !string.Equals(header.Scheme, "Bearer", StringComparison.OrdinalIgnoreCase) ||
             string.IsNullOrWhiteSpace(header.Parameter) || header.Parameter.Any(char.IsWhiteSpace))
-            return Task.FromResult(AuthenticateResult.Fail("Et ikke-tomt Bearer-token kreves i Local."));
+            return Task.FromResult(AuthenticateResult.Fail("Et ikke-tomt Bearer-token kreves i Local og Development."));
 
         // Ingen claims fra det uvaliderte tokenet brukes som identitet, scopes eller organisasjonsnummer.
         var identitet = new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "lokal-bruker")], Scheme.Name);

@@ -263,9 +263,9 @@ Forventede valideringsfeil gir 400, inkludert ukjent ftbid eller arkivreferanse 
 
 `Maskinporten:Aktivert` er satt til `true` i alle fem innstillingsfiler: felles `appsettings.json` samt `Local`, `Development`, `Test` og `Production`. Flagget kan fortsatt overstyres med `Maskinporten__Aktivert`. En endring krever omstart. Når flagget er av, er ftbid-endepunktene åpne uten token og Swagger viser ingen autentiseringskrav.
 
-I **Local** kreves kun en ikke-tom `Authorization: Bearer <token>`-header. Tokenets JWT-format, signatur, utsteder, levetid, konsument og scopes valideres ikke. Metadata og signeringsnøkler hentes ikke. Ingen claims fra det uvaliderte tokenet brukes som identitet eller organisasjonsnummer; lokale opprettinger deler derfor rategrensen. Helseendepunktene er fortsatt offentlige.
+I **Local og Development** kreves kun en ikke-tom `Authorization: Bearer <token>`-header. Tokenets JWT-format, signatur, utsteder, levetid, konsument og scopes valideres ikke. Metadata og signeringsnøkler hentes ikke. Ingen claims fra det uvaliderte tokenet brukes som identitet eller organisasjonsnummer; lokale opprettinger deler derfor rategrensen. Helseendepunktene er fortsatt offentlige.
 
-I **Development, Test og Production** brukes full JWT- og scopevalidering som beskrevet nedenfor. Den lokale forenklingen velges utelukkende av miljønavnet `Local`, ikke av et eget flagg for tokenvalidering.
+I **Test og Production** brukes full JWT- og scopevalidering som beskrevet nedenfor. Forenklingen velges av miljønavnet `Local` eller `Development`, ikke av et eget flagg for tokenvalidering.
 
 `launchSettings.json` bruker `Local`, slik at `dotnet run --project src/Ftpb.Ftbid.Api` starter lokalt. For andre miljøer må oppstartsprofilen utelates:
 
@@ -273,9 +273,9 @@ I **Development, Test og Production** brukes full JWT- og scopevalidering som be
 ASPNETCORE_ENVIRONMENT=Development dotnet run --project src/Ftpb.Ftbid.Api --no-launch-profile
 ```
 
-[ftbid_endepunkter_local.http](ftbid_endepunkter_local.http) inneholder eksempler på alle API-endepunkter, helse, OpenAPI og Swagger. Eksempeltokenet er en syntetisk JWT med ugyldig signatur og utløpt levetid, som bare fungerer i Local. Lim eventuelt inn et ekte Maskinporten-token i `token`-variabelen. Kjør opprettingsforespørselen først i Riders HTTP-klient; svaret lagres til senere oppslag og tilknytning. `AR123456789` forutsetter import av eksempelfilen for referansedata.
+[ftbid_endepunkter_local.http](ftbid_endepunkter_local.http) inneholder eksempler på alle API-endepunkter, helse, OpenAPI og Swagger. Eksempeltokenet er en syntetisk JWT med ugyldig signatur og utløpt levetid, som fungerer i Local og Development. Lim eventuelt inn et ekte Maskinporten-token i `token`-variabelen. Kjør opprettingsforespørselen først i Riders HTTP-klient; svaret lagres til senere oppslag og tilknytning. `AR123456789` forutsetter import av eksempelfilen for referansedata.
 
-Utenfor Local sendes token i `Authorization: Bearer <tilgangstoken>`. Servicen bruker JWT Bearer og henter metadata fra utstederens `.well-known/oauth-authorization-server`. Biblioteket håndterer henting og mellomlagring av signeringsnøkler. Signatur, RSA-algoritme, utsteder og levetid kontrolleres; tidsavviket er 30 sekunder. Scopes kontrolleres som hele verdier. `consumer.ID` må inneholde et norsk organisasjonsnummer på formen `0192:123456789`.
+I Test og Production sendes token i `Authorization: Bearer <tilgangstoken>`. Servicen bruker JWT Bearer og henter metadata fra utstederens `.well-known/oauth-authorization-server`. Biblioteket håndterer henting og mellomlagring av signeringsnøkler. Signatur, RSA-algoritme, utsteder og levetid kontrolleres; tidsavviket er 30 sekunder. Scopes kontrolleres som hele verdier. `consumer.ID` må inneholde et norsk organisasjonsnummer på formen `0192:123456789`.
 
 NIREGs særskilte SKO-rollekontroll videreføres ikke, siden denne servicen autoriserer med ftbid-scopes. Publikumskontroll er som i NIREG avskrudd når `Maskinporten:Publikum` er tom; sett verdien hvis API-et bruker publikumsbegrensede token. Når Maskinporten er aktivert, har Swagger en Authorize-knapp for innliming av token.
 
@@ -370,7 +370,7 @@ Sikkerhetskopier, SQL-import og rapport med alle syntetiske verdier finnes lokal
 | ASPNETCORE_ENVIRONMENT | Maskinporten | PostgreSQL | Migrering ved oppstart | Swagger |
 | --- | --- | --- | --- | --- |
 | Local | Kun tokenets tilstedeværelse | Lokal standardtilkobling | Ja | Ja |
-| Development | test.maskinporten.no, full validering | Miljøvariabel | Nei | Ja |
+| Development | Kun tokenets tilstedeværelse | Miljøvariabel | Nei | Ja |
 | Test | test.maskinporten.no, full validering | Miljøvariabel | Nei | Ja |
 | Production | maskinporten.no, full validering | Miljøvariabel | Nei | Nei |
 

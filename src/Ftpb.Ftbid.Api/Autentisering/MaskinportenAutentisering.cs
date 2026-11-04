@@ -14,7 +14,7 @@ public static class MaskinportenAutentisering
     public const string Les = "FtbidLes";
     public const string Endre = "FtbidEndre";
 
-    /// <summary>Registrerer tokenvalidering og scopekrav når aktivert, lokalt kun tokenets tilstedeværelse, ellers åpne tilgangsregler.</summary>
+    /// <summary>Registrerer tokenvalidering og scopekrav når aktivert, i Local og Development kun tokenets tilstedeværelse, ellers åpne tilgangsregler.</summary>
     public static IServiceCollection LeggTilMaskinporten(this IServiceCollection services, MaskinportenInnstillinger innstillinger, IHostEnvironment miljo)
     {
         if (!innstillinger.Aktivert)
@@ -25,7 +25,7 @@ public static class MaskinportenAutentisering
                 .AddPolicy(Endre, regel => regel.RequireAssertion(_ => true));
             return services;
         }
-        if (miljo.IsEnvironment("Local"))
+        if (miljo.IsEnvironment("Local") || miljo.IsDevelopment())
         {
             services.AddAuthentication(Ordning)
                 .AddScheme<AuthenticationSchemeOptions, LokaltMaskinportenToken>(Ordning, _ => { });

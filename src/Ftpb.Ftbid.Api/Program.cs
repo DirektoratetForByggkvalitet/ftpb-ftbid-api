@@ -71,8 +71,8 @@ bygger.Services.AddSwaggerGen(valg =>
     if (maskinportenAktivert)
     {
         valg.AddSecurityDefinition("Maskinporten", new OpenApiSecurityScheme
-        { Type = SecuritySchemeType.Http, Scheme = "bearer", BearerFormat = "JWT", Description = bygger.Environment.IsEnvironment("Local")
-            ? "Local krever kun et Bearer-token. Tokenets innhold og scopes valideres ikke."
+        { Type = SecuritySchemeType.Http, Scheme = "bearer", BearerFormat = "JWT", Description = bygger.Environment.IsEnvironment("Local") || bygger.Environment.IsDevelopment()
+            ? "Local og Development krever kun et Bearer-token. Tokenets innhold og scopes valideres ikke."
             : "Tilgangstoken fra Maskinporten med les- eller endrescope." });
         valg.AddSecurityRequirement(dokument => new OpenApiSecurityRequirement
         { [new OpenApiSecuritySchemeReference("Maskinporten", dokument)] = [] });
