@@ -28,7 +28,7 @@ public sealed class MaskinportenFlaggTester(PostgresApiOppsett oppsett)
         using var fabrikk = oppsett.Fabrikk.WithWebHostBuilder(bygger =>
             bygger.UseEnvironment(miljo).UseSetting("Maskinporten:Aktivert", aktivert.ToString()));
         using var klient = fabrikk.CreateClient();
-        var arkivreferanse = "ARFLAGG" + Guid.NewGuid().ToString("N");
+        var arkivreferanse = "urn:dibk:bygg:flagg:" + Guid.NewGuid().ToString("N");
         using (var omfang = fabrikk.Services.CreateScope())
         {
             var database = omfang.ServiceProvider.GetRequiredService<FtbidDbContext>();
@@ -44,7 +44,7 @@ public sealed class MaskinportenFlaggTester(PostgresApiOppsett oppsett)
         Assert.Equal(aktivert ? HttpStatusCode.Unauthorized : HttpStatusCode.OK, oppretting.StatusCode);
         var ftbid = aktivert ? "709999900000000017" : (await oppretting.Content.ReadFromJsonAsync<string>())!;
         using var tilknytning = await klient.PostAsJsonAsync("/api/ftbid/tilknytt", new TilknyttFtbid
-        { Ftbid = ftbid, Arkivreferanse = arkivreferanse });
+        { Ftbid = ftbid, ReferanseId = arkivreferanse });
         Assert.Equal(aktivert ? HttpStatusCode.Unauthorized : HttpStatusCode.NoContent, tilknytning.StatusCode);
         using var oppslag = await klient.GetAsync("/api/ftbid/" + ftbid);
         using var sok = await klient.GetAsync("/api/ftbid/sok?kommunenummer=0301");
@@ -53,7 +53,7 @@ public sealed class MaskinportenFlaggTester(PostgresApiOppsett oppsett)
         if (!aktivert)
         {
             var prosjekt = Assert.Single((await oppslag.Content.ReadFromJsonAsync<List<FtbidResultat>>())!);
-            Assert.Equal(arkivreferanse, Assert.Single(prosjekt.TilknyttedeSkjemaer).Arkivreferanse);
+            Assert.Equal(arkivreferanse, Assert.Single(prosjekt.Tilknytninger).ReferanseId);
         }
         if (miljo == "Production")
         {

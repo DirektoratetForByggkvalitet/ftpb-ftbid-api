@@ -7,6 +7,6 @@ public interface IFtbidOppslagService
 {
     /// <summary>Henter metadata med full ftbid eller de siste åtte sifrene.</summary>
     Task<IReadOnlyList<FtbidResultat>> HentAsync(string ftbid, CancellationToken avbrudd = default);
-    /// <summary>Søker med minst ett filter og returnerer tilknyttede skjemadata.</summary>
+    /// <summary>Søker med minst ett filter og returnerer tilknytninger.</summary>
     Task<IReadOnlyList<FtbidResultat>> SokAsync(FtbidSok filter, CancellationToken avbrudd = default);
 }

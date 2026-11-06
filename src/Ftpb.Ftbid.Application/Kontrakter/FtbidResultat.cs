@@ -1,6 +1,6 @@
 namespace Ftpb.Ftbid.Application.Kontrakter;
 
-/// <summary>Prosjektdata med eiendommer og tilknyttede skjemaer.</summary>
+/// <summary>Prosjektdata med eiendommer og tilknytninger til skjemaer, rapporter og andre ressurser.</summary>
 public sealed class FtbidResultat
 {
     public string Ftbid { get; set; } = "";
@@ -13,5 +13,5 @@ public sealed class FtbidResultat
     public List<string> Tiltakstyper { get; set; } = [];
     public string? Prosjektnummer { get; set; }
     public string Prosjektnavn { get; set; } = "";
-    public List<TilknyttetSkjema> TilknyttedeSkjemaer { get; set; } = [];
+    public List<Tilknytning> Tilknytninger { get; set; } = [];
 }

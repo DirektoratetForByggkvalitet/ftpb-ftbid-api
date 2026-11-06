@@ -5,7 +5,6 @@ using Ftpb.Ftbid.Api.Helse;
 using Ftpb.Ftbid.Application.Feil;
 using Ftpb.Ftbid.Application.Services;
 using Ftpb.Ftbid.Infrastructure.Persistens;
-using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Ftpb.Ftbid.Domain.Feil.Unntak;
 using Microsoft.AspNetCore.Builder;
@@ -25,7 +24,7 @@ bygger.Services.LeggTilFtbidServices(bygger.Configuration, bygger.Environment);
 bygger.Services.AddControllers().AddJsonOptions(valg =>
 {
     valg.JsonSerializerOptions.PropertyNamingPolicy = null;
-    valg.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+    JsonResponsoppsett.InkluderAlleVerdier(valg.JsonSerializerOptions);
 });
 bygger.Services.Configure<ApiBehaviorOptions>(valg => valg.InvalidModelStateResponseFactory = kontekst =>
 {
@@ -42,7 +41,7 @@ bygger.Services.Configure<ApiBehaviorOptions>(valg => valg.InvalidModelStateResp
 bygger.Services.ConfigureHttpJsonOptions(valg =>
 {
     valg.SerializerOptions.PropertyNamingPolicy = null;
-    valg.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+    JsonResponsoppsett.InkluderAlleVerdier(valg.SerializerOptions);
 });
 bygger.Services.AddExceptionHandler<FtbidFeilhandtering>();
 bygger.Services.AddProblemDetails(valg => valg.CustomizeProblemDetails = kontekst =>
@@ -67,6 +66,7 @@ bygger.Services.AddRateLimiter(valg =>
 bygger.Services.AddEndpointsApiExplorer();
 bygger.Services.AddSwaggerGen(valg =>
 {
+    valg.SchemaFilter<TilknytningSkjemaFilter>();
     valg.SwaggerDoc("v1", new OpenApiInfo { Title = "Ftbid-servicen", Version = "v1", Description = "Prosjektidentifikatorer og identifikasjonsmetadata." });
     if (maskinportenAktivert)
     {

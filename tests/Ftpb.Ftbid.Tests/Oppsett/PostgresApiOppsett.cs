@@ -57,7 +57,7 @@ public sealed class PostgresApiOppsett : IAsyncLifetime
         await database.Database.MigrateAsync();
         database.Kommuner.AddRange(new Kommune { Kommunenummer = "0301" }, new Kommune { Kommunenummer = "5001" },
             new Kommune { Kommunenummer = "9998", GyldigTil = DateTimeOffset.UtcNow.AddDays(-1) });
-        database.Skjemametadata.Add(new Skjemametadata { Arkivreferanse = "AR123456789", Skjematype = "Søknad om rammetillatelse", Tiltakstyper = ["nyttanlegg"] });
+        database.Skjemametadata.Add(new Skjemametadata { Arkivreferanse = "urn:dibk:bygg:innsending-id:123456789", Skjematype = "Søknad om rammetillatelse", Tiltakstyper = ["nyttanlegg"] });
         await database.SaveChangesAsync();
     }
 

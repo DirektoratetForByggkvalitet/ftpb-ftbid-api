@@ -67,7 +67,7 @@ Hver modell og kontrakt ligger i en egen fil. Mappene og navnerommene beskriver 
 | Infrastructure | `Persistens/Lagre`, `Referansedata`, `Migrasjoner` |
 | Tests | `Enhet`, `Integrasjon`, `Oppsett` |
 
-`FtbidOpprettingService` validerer prosjektdata og oppretter en identifikator. `FtbidDublettService` kontrollerer den samlede dublettnøkkelen før lagring, under PostgreSQL-transaksjonslåsen. `FtbidOppslagService` håndterer søk, oppslag og resultatmodeller. `FtbidTilknytningService` håndterer arkivreferanser. `FtbidEiendomService` validerer tillegg og sletting av adresser og matrikkelenheter, med atomisk lagring gjennom `IFtbidEiendomslager` og `PostgresFtbidEiendomslager`. Servicene har egne grensesnitt som kontrolleren får gjennom avhengighetsinjeksjon.
+`FtbidOpprettingService` validerer prosjektdata og oppretter en identifikator. `FtbidDublettService` kontrollerer den samlede dublettnøkkelen før lagring, under PostgreSQL-transaksjonslåsen. `FtbidOppslagService` håndterer søk, oppslag og resultatmodeller. `FtbidTilknytningService` håndterer URN-referanser. `FtbidEiendomService` validerer tillegg og sletting av adresser og matrikkelenheter, med atomisk lagring gjennom `IFtbidEiendomslager` og `PostgresFtbidEiendomslager`. Servicene har egne grensesnitt som kontrolleren får gjennom avhengighetsinjeksjon.
 
 `IFtbidLager` samler PostgreSQL-operasjonene for prosjektet og dets tilknytninger. Opprettingens transaksjon, sekvenstildeling og duplikatbeskyttelse ligger samlet i `PostgresFtbidLager`. Kommuneoppslag har en egen kontrakt, `IKommuneregister`, og implementeres av `PostgresKommuneregister`. `IReferansedataImportService` brukes av importkommandoen og implementeres i Infrastructure, med atomisk oppdatering av kommuner og skjemaer.
 
@@ -85,7 +85,7 @@ Felles tekstvalidering og normalisering er interne hjelpefunksjoner i Applicatio
 | PUT | `/api/ftbid/{ftbid}/eiendom/{eiendomId}` | `dibk:bygg/ftbid.endre` | 204 |
 | DELETE | `/api/ftbid/{ftbid}/eiendom/{eiendomId}` | `dibk:bygg/ftbid.endre` | 204 |
 
-API-ruter og JSON-feltnavn er på norsk. Tilknytning bruker `Ftbid` og `Arkivreferanse`, og svarene bruker `TilknyttedeSkjemaer` med `Arkivreferanse`, `Skjematype` og `Tiltakstyper`. JSON-inndata er ikke følsomme for store og små bokstaver. Dette er en bevisst endring fra adapterens engelske ruter og JSON-feltnavn; klienter må oppdateres til den nye kontrakten.
+API-ruter og JSON-feltnavn er på norsk. Tilknytning bruker `Ftbid` og `ReferanseId`, og svarene bruker `Tilknytninger` med `ReferanseId`, `Typebeskrivelse` og `Tiltakstyper`. Strukturen støtter skjemaer, rapporter og andre referanser. JSON-svar inkluderer nullverdier, tomme strenger og tomme lister, også i nestede objekter og feilsvar. Verdiene bevares som `null`, `""` og `[]`. JSON-inndata er ikke følsomme for store og små bokstaver. Dette er en bevisst endring fra adapterens engelske ruter og JSON-feltnavn; klienter må oppdateres til den nye kontrakten.
 
 ### Eiendomsmodell og oppretting
 
@@ -137,7 +137,7 @@ Prosjektet støtter `EksternProsjektreferanse` (200 tegn), `KommunaltSaksnummer`
 
 Dublettkontrollen bruker kun kombinasjonen av `Prosjektnavn`, `Prosjektnr` (prosjektnummer), `Tiltakstyper` og matrikkelens `Kommunenummer`, `Gaardsnummer` og `Bruksnummer`. `Prosjektnavn` og `Prosjektnr` er påkrevd og kan ikke være null, tomme eller bare mellomrom. `Tiltakstyper` må inneholde minst én verdi, og hver verdi må være utfylt. `Eiendom` må inneholde minst én eiendom med alle tre matrikkelfeltene. Gårds- og bruksnummer må oppgis som ikke-negative heltall; manglende eller null verdier avvises med 400.
 
-Klienter må sende og lese `Tiltakstyper` som en liste; det tidligere feltet `Tiltakstype` er erstattet. Søkeparameteren `tiltakstype` er fortsatt én verdi og matcher enhver type i prosjektet eller et tilknyttet skjema.
+Klienter må sende og lese `Tiltakstyper` som en liste; det tidligere feltet `Tiltakstype` er erstattet. Søkeparameteren `tiltakstype` er fortsatt én verdi og matcher enhver type i prosjektet eller en tilknyttet referanse.
 
 Tiltakstyper sammenlignes som et helt sett: rekkefølge og gjentatte verdier ignoreres. En SHA-256-hash av det normaliserte, sorterte settet (entydig JSON) lagres internt og indekseres for nye prosjekter. Selve settet kontrolleres også ved hashmatch. Migreringen bevarer gamle enkeltverdier som lister; eldre poster uten lagret hash inkluderes i oppslaget og får hashen beregnet ved sammenligning. Manglende eldre tiltakstyper blir en tom liste.
 
@@ -151,10 +151,34 @@ EAN-formatet er sju sifre GS1-prefiks, tre reserverte nuller, sju sifre PostgreS
 ### Tilknytning og oppslag
 
 ```json
-{ "Ftbid": "707338700000000014", "Arkivreferanse": "AR123456789" }
+{ "Ftbid": "707338700000000014", "ReferanseId": "urn:dibk:bygg:innsending-id:65465411-34184-13213" }
 ```
 
-Arkivreferansen må finnes i `skjemametadata`, og ftbid må finnes i `ftbid`. En arkivreferanse kan være tilknyttet én ftbid om gangen. Gjentatt tilknytning er idempotent; tilknytning til en annen ftbid flytter referansen. Full ftbid og de siste åtte sifrene kan brukes til oppslag; kortformen utvides med konfigurert GS1-prefiks og tre nuller.
+Referansen må finnes i `skjemametadata`, og ftbid må finnes i `ftbid`. En referanse kan være tilknyttet én ftbid om gangen. Gjentatt tilknytning er idempotent; tilknytning til en annen ftbid flytter referansen. Full ftbid og de siste åtte sifrene kan brukes til oppslag; kortformen utvides med konfigurert GS1-prefiks og tre nuller.
+
+`ReferanseId` er påkrevd og må være en syntaktisk gyldig URN etter [RFC 8141](https://www.rfc-editor.org/rfc/rfc8141.html), med maksimalt 80 tegn etter trimming. URN-en må ha prefikset `urn:`, et navnerom med 2–32 ASCII-bokstaver/sifre/bindestrek (bokstav eller siffer først og sist), og en ikke-tom navneromsspesifikk referanse. Mellomrom og uescaped Unicode er ikke tillatt; prosentkoding må ha to heksadesimale sifre. Valgfrie r-, q- og fragmentkomponenter støttes. Det gjøres ikke oppslag i navneromsregistre. Ugyldig URN gir HTTP 400 med ProblemDetails, en norsk feilmelding som nevner `ReferanseId` og feilkode `V0073`. Manglende verdi gir `V0042`, og for lang verdi gir `V0047`.
+
+Oppslag og søk returnerer for eksempel:
+
+```json
+{
+  "Tilknytninger": [
+    {
+      "ReferanseId": "urn:dibk:bygg:innsending-id:65465411-34184-13213",
+      "Typebeskrivelse": "Skjema for søknad om rammetillatelse",
+      "Tiltakstyper": ["nybygg"]
+    },
+    {
+      "ReferanseId": "urn:dibk:bygg:rapport-id:65465411-34184-13213",
+      "Typebeskrivelse": "Rapport bygningsavfall",
+      "Tiltakstyper": ["nybygg"]
+    }
+  ]
+}
+```
+
+Dette er en kontraktsendring: klienter må erstatte `TilknyttedeSkjemaer`, `Arkivreferanse` og `Skjematype` med de nye API-feltnavnene. Eksisterende databasetabeller og importformatet beholdes: `Arkivreferanse` mappes til `ReferanseId` og `Skjematype` til `Typebeskrivelse`. Metadata for rapporter og andre ressurser registreres på samme måte som skjemametadata. Eksisterende tilknytninger returneres uendret under de nye feltnavnene, også der referansen ennå ikke er en URN eller typebeskrivelsen mangler. Det gjøres ingen databeriking eller omskriving av eldre arkivreferanser. URN-kravet gjelder nye tilknytningsforespørsler.
+
 
 ### Endre eiendommer
 
@@ -174,7 +198,7 @@ Vellykkede endringer gir 204. Ukjent ftbid gir `V0054`, og erstatning av en eien
 | --- | --- | --- |
 | FtID (eksisterende Ftbid) | `ftid` | Eksakt full identifikator eller de siste åtte sifrene, utvidet med konfigurert GS1-prefiks |
 | Prosjektnavn/tiltaksnavn | `prosjektnavn`, `tiltaksnavn` | Deltreff i samme prosjektnavn; begge filtre må treffe hvis begge oppgis |
-| Tiltakstype | `tiltakstype` | En av prosjektets tiltakstyper eller tiltakstype fra et tilknyttet skjema |
+| Tiltakstype | `tiltakstype` | En av prosjektets tiltakstyper eller tiltakstype fra en tilknyttet referanse |
 | Ekstern prosjektreferanse | `eksternprosjektreferanse` | Eksakt; bruker eldre `Prosjektnr` som reserve når ekstern referanse mangler |
 | Kommunalt saksnummer | `kommunaltsaksnummer` | Eksakt |
 | Organisasjonsnummer til ansvarlig søker | `ansvarligsokerorganisasjonsnummer` | Eksakt, ni sifre; separat fra `Organisasjonsnummer` for tiltakshaver |
@@ -222,7 +246,8 @@ Regler med samme betydning gjenbruker NIREGs kode. Ftbids egne regler har koder 
 | V0050 | SøkeparameterManglerException |
 | V0051 | UgyldigSøkenummerException |
 | V0052 | UgyldigFtbidException |
-| V0053 | ArkivreferanseIkkeFunnetException |
+| V0053 | ArkivreferanseIkkeFunnetException (referansen finnes ikke i metadata) |
+| V0073 | UgyldigUrnException |
 | V0054 | FtbidIkkeFunnetException |
 | V0055 | UgyldigeReferansedataException |
 | V0056 | UgyldigeSkjemametadataException |
@@ -257,7 +282,7 @@ Svarene har innholdstype `application/problem+json`. Standardfeltene `type`, `ti
 }
 ```
 
-Forventede valideringsfeil gir 400, inkludert ukjent ftbid eller arkivreferanse ved tilknytning. En ukjent ftbid ved ordinært oppslag gir fortsatt 200 med tom liste. Konfigurasjons- og sekvensfeil er andre `FtbidException`-typer; de er ikke klientfeil og gir 500 dersom de oppstår under en HTTP-forespørsel. Oppstartsfeil stopper prosessen. Uventede feil logges, men interne detaljer og databaseopplysninger sendes ikke til klienten. De har ingen oppdiktet regelkode.
+Forventede valideringsfeil gir 400, inkludert ukjent ftbid eller ReferanseId ved tilknytning. En ukjent ftbid ved ordinært oppslag gir fortsatt 200 med tom liste. Konfigurasjons- og sekvensfeil er andre `FtbidException`-typer; de er ikke klientfeil og gir 500 dersom de oppstår under en HTTP-forespørsel. Oppstartsfeil stopper prosessen. Uventede feil logges, men interne detaljer og databaseopplysninger sendes ikke til klienten. De har ingen oppdiktet regelkode.
 
 ## Maskinporten
 

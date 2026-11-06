@@ -102,7 +102,7 @@ public sealed class UtvidetSokTester(PostgresApiOppsett oppsett)
         Assert.Equal(HttpStatusCode.OK, svar.StatusCode);
         var ftbid = await svar.Content.ReadFromJsonAsync<string>();
         Assert.Equal(HttpStatusCode.NoContent, (await klient.PostAsJsonAsync("/api/ftbid/tilknytt",
-            new { Ftbid = ftbid, Arkivreferanse = "AR123456789" })).StatusCode);
+            new { Ftbid = ftbid, ReferanseId = "urn:dibk:bygg:innsending-id:123456789" })).StatusCode);
         var resultater = await klient.GetFromJsonAsync<List<FtbidResultat>>("/api/ftbid/sok?ftid=" + ftbid + "&tiltakstype=NYTTANLEGG");
         Assert.Equal(ftbid, Assert.Single(resultater!).Ftbid);
     }

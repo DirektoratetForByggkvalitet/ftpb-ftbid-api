@@ -29,10 +29,11 @@ public sealed class FtbidKontroller(IFtbidOpprettingService oppretting, IFtbidOp
     public async Task<ActionResult<string>> OpprettAsync([FromBody] OpprettFtbid foresporsel, CancellationToken avbrudd) =>
         new JsonResult(await oppretting.OpprettAsync(foresporsel, avbrudd)) { StatusCode = StatusCodes.Status200OK };
 
-    /// <summary>Knytter en eksisterende arkivreferanse til en ftbid.</summary>
+    /// <summary>Knytter en eksisterende referanse til en ftbid.</summary>
     [HttpPost("tilknytt")]
     [Authorize(Policy = MaskinportenAutentisering.Endre)]
-    [EndpointSummary("Knytt arkivreferanse til ftbid")]
+    [EndpointSummary("Knytt skjema, rapport eller annen referanse til ftbid")]
+    [EndpointDescription("Send Ftbid og ReferanseId. ReferanseId må være en gyldig URN (RFC 8141-syntaks), maksimalt 80 tegn, og finnes i metadata. Ugyldig URN gir 400 med ProblemDetails og feilkode V0073. Flere referanser kan knyttes til samme ftbid. Gjentatt tilknytning er idempotent; en referanse flyttes ved tilknytning til en annen ftbid. Oppslag og søk returnerer Tilknytninger med ReferanseId, Typebeskrivelse og Tiltakstyper.")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status500InternalServerError, "application/problem+json")]

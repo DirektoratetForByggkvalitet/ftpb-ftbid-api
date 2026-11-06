@@ -25,7 +25,7 @@ public enum Feilkode
     V0051,
     /// <summary>Identifikatoren har ugyldig format.</summary>
     V0052,
-    /// <summary>Arkivreferansen finnes ikke i skjemametadata.</summary>
+    /// <summary>Referansen finnes ikke i metadata.</summary>
     V0053,
     /// <summary>Identifikatoren finnes ikke ved tilknytning eller endring.</summary>
     V0054,
@@ -54,4 +54,6 @@ public enum Feilkode
     V0071,
     /// <summary>Ingen ftbider samsvarer med søkefiltrene.</summary>
     V0072,
+    /// <summary>ReferanseId har ugyldig URN-syntaks.</summary>
+    V0073,
 }

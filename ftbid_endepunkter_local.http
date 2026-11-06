@@ -81,12 +81,12 @@ Authorization: Bearer {{token}}
 DELETE {{adresse}}/api/ftbid/{{opprettet_ftbid}}/eiendom/{{eiendom_id}}
 Authorization: Bearer {{token}}
 
-### Knytt arkivreferanse
+### Knytt referanse
 POST {{adresse}}/api/ftbid/tilknytt
 Authorization: Bearer {{token}}
 Content-Type: application/json
 
-{ "Ftbid": "{{opprettet_ftbid}}", "Arkivreferanse": "AR123456789" }
+{ "Ftbid": "{{opprettet_ftbid}}", "ReferanseId": "urn:dibk:bygg:innsending-id:65465411-34184-13213" }
 
 ### Helsesjekk
 GET {{adresse}}/helse

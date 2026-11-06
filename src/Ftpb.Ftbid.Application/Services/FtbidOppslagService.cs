@@ -49,7 +49,7 @@ public sealed class FtbidOppslagService(IFtbidLager lager, FtbidInnstillinger in
                 e.Eiendomsidentifikasjon, e.Adresse.OrderBy(a => a.Rekkefolge).Select(a => new Adressedata(
                     a.Adresselinje1, a.Adresselinje2, a.Adresselinje3, a.Postnr, a.Poststed, a.Landkode,
                     a.Gatenavn, a.Husnr, a.Bokstav)).ToList(), e.Bygningsnummer, e.Bolignummer, e.Kommunenavn)).ToList(),
-            TilknyttedeSkjemaer = prosjekt.Identifikasjonsmetadata.OrderBy(m => m.Arkivreferanse)
-                .Select(m => new TilknyttetSkjema(m.Arkivreferanse, m.Skjemametadata.Skjematype, m.Skjemametadata.Tiltakstyper)).ToList() };
+            Tilknytninger = prosjekt.Identifikasjonsmetadata.OrderBy(m => m.Arkivreferanse)
+                .Select(m => new Tilknytning(m.Arkivreferanse, m.Skjemametadata.Skjematype, m.Skjemametadata.Tiltakstyper)).ToList() };
     }
 }
