@@ -19,7 +19,7 @@ public sealed class TilknytningTester
     public async Task GyldigeUrnerSendesUendretTilLager(string referanse)
     {
         var lager = new TestLager();
-        await new FtbidTilknytningService(lager, new()).TilknyttAsync(new() { Ftbid = "709999900000000017", ReferanseId = referanse });
+        await new FtbidTilknytningService(lager, new()).TilknyttAsync(new() { Ftbid = "709999900000000017", Tilknytninger = [new() { ReferanseId = referanse }] });
         Assert.Equal(referanse, lager.Referanse);
     }
 
@@ -43,7 +43,7 @@ public sealed class TilknytningTester
     {
         var lager = new TestLager();
         var feil = await Assert.ThrowsAsync<UgyldigUrnException>(() => new FtbidTilknytningService(lager, new())
-            .TilknyttAsync(new() { Ftbid = "709999900000000017", ReferanseId = referanse }));
+            .TilknyttAsync(new() { Ftbid = "709999900000000017", Tilknytninger = [new() { ReferanseId = referanse }] }));
         Assert.Contains("ReferanseId", feil.Message);
         Assert.Null(lager.Referanse);
     }
@@ -55,7 +55,7 @@ public sealed class TilknytningTester
     public async Task ReferanseErPakrevd(string? referanse)
     {
         await Assert.ThrowsAsync<PåkrevdVerdiManglerException>(() => new FtbidTilknytningService(new TestLager(), new())
-            .TilknyttAsync(new() { Ftbid = "709999900000000017", ReferanseId = referanse }));
+            .TilknyttAsync(new() { Ftbid = "709999900000000017", Tilknytninger = [new() { ReferanseId = referanse }] }));
     }
 
     [Theory]
@@ -68,22 +68,63 @@ public sealed class TilknytningTester
         var service = new FtbidTilknytningService(lager, new());
         if (lengde == 80)
         {
-            await service.TilknyttAsync(new() { Ftbid = "709999900000000017", ReferanseId = referanse });
+            await service.TilknyttAsync(new() { Ftbid = "709999900000000017", Tilknytninger = [new() { ReferanseId = referanse }] });
             Assert.Equal(referanse, lager.Referanse);
         }
         else
         {
-            await Assert.ThrowsAsync<TekstForLangException>(() => service.TilknyttAsync(new() { Ftbid = "709999900000000017", ReferanseId = referanse }));
+            await Assert.ThrowsAsync<TekstForLangException>(() => service.TilknyttAsync(new() { Ftbid = "709999900000000017", Tilknytninger = [new() { ReferanseId = referanse }] }));
             Assert.Null(lager.Referanse);
         }
+    }
+
+    [Fact]
+    public async Task HeleListenValideresForLagring()
+    {
+        var lager = new TestLager();
+        await Assert.ThrowsAsync<UgyldigUrnException>(() => new FtbidTilknytningService(lager, new()).TilknyttAsync(new()
+        {
+            Ftbid = "709999900000000017",
+            Tilknytninger = [new() { ReferanseId = "urn:dibk:gyldig" }, new() { ReferanseId = "ugyldig" }]
+        }));
+        Assert.Null(lager.Referanse);
+    }
+
+    [Fact]
+    public async Task ManglendeOgTomListeAvvises()
+    {
+        var service = new FtbidTilknytningService(new TestLager(), new());
+        foreach (var liste in new List<TilknytningForesporsel>?[] { null, [], [null!] })
+            await Assert.ThrowsAsync<PåkrevdVerdiManglerException>(() => service.TilknyttAsync(new()
+            { Ftbid = "709999900000000017", Tilknytninger = liste }));
+    }
+
+    [Fact]
+    public async Task UgyldigeMetadataAvvisesForLagring()
+    {
+        var lager = new TestLager();
+        var service = new FtbidTilknytningService(lager, new());
+        await Assert.ThrowsAsync<TekstForLangException>(() => service.TilknyttAsync(new()
+        {
+            Ftbid = "709999900000000017",
+            Tilknytninger = [new() { ReferanseId = "urn:dibk:gyldig", Typebeskrivelse = new string('a', 501) }]
+        }));
+        foreach (var typer in new List<string>[] { null!, [" "] })
+            await Assert.ThrowsAsync<UgyldigeSkjemametadataException>(() => service.TilknyttAsync(new()
+            {
+                Ftbid = "709999900000000017",
+                Tilknytninger = [new() { ReferanseId = "urn:dibk:gyldig", Tiltakstyper = typer }]
+            }));
+        Assert.Null(lager.Referanse);
     }
 
     private sealed class TestLager : IFtbidLager
     {
         public string? Referanse { get; private set; }
-        public Task TilknyttAsync(string ftbid, string arkivreferanse, CancellationToken avbrudd) { Referanse = arkivreferanse; return Task.CompletedTask; }
+        public Task TilknyttAsync(string ftbid, IReadOnlyList<Tilknytning> tilknytninger, CancellationToken avbrudd) { Referanse = tilknytninger.Single().ReferanseId; return Task.CompletedTask; }
         public Task<string> OpprettAsync(FtbidEntitet prosjekt, string gs1Prefiks, CancellationToken avbrudd) => throw new NotSupportedException();
         public Task<IReadOnlyList<FtbidEntitet>> HentAsync(string ftbid, CancellationToken avbrudd) => throw new NotSupportedException();
+        Task<PaginertResultat<FtbidEntitet>> IFtbidLager.ListeAsync(Paginering paginering, CancellationToken avbrudd) => throw new NotSupportedException();
         public Task<IReadOnlyList<FtbidEntitet>> SokAsync(FtbidSok filter, CancellationToken avbrudd) => throw new NotSupportedException();
     }
 }

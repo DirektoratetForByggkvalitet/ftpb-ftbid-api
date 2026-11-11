@@ -15,6 +15,14 @@ namespace Ftpb.Ftbid.Infrastructure.Persistens.Lagre;
 public sealed class PostgresFtbidLager(FtbidDbContext database, IFtbidDublettService dublettService) : IFtbidLager
 {
     /// <inheritdoc />
+    public async Task<PaginertResultat<FtbidEntitet>> ListeAsync(Paginering paginering, CancellationToken avbrudd = default)
+    {
+        var rader = await MedMetadata().OrderBy(f => f.Ean)
+            .Skip(paginering.BeregnForskyvning()).Take(Paginering.Sidestorrelse + 1).ToListAsync(avbrudd);
+        return PaginertResultat<FtbidEntitet>.Opprett(rader, paginering.Side);
+    }
+
+    /// <inheritdoc />
     public async Task<string> OpprettAsync(FtbidEntitet prosjekt, string gs1Prefiks, CancellationToken avbrudd)
     {
         await using var transaksjon = await database.Database.BeginTransactionAsync(avbrudd);
@@ -39,16 +47,29 @@ public sealed class PostgresFtbidLager(FtbidDbContext database, IFtbidDublettSer
     }
 
     /// <inheritdoc />
-    public async Task TilknyttAsync(string ftbid, string arkivreferanse, CancellationToken avbrudd)
+    public async Task TilknyttAsync(string ftbid, IReadOnlyList<Tilknytning> tilknytninger, CancellationToken avbrudd)
     {
-        if (!await database.Skjemametadata.AnyAsync(m => m.Arkivreferanse == arkivreferanse, avbrudd))
-            throw new ArkivreferanseIkkeFunnetException(arkivreferanse);
+        await using var transaksjon = await database.Database.BeginTransactionAsync(avbrudd);
         if (!await database.Ftbider.AnyAsync(f => f.Ean == ftbid, avbrudd))
             throw new FtbidIkkeFunnetException(ftbid);
-        await database.Database.ExecuteSqlInterpolatedAsync($"""
-            INSERT INTO identifikasjonsmetadata (arkivreferanse, ftbid) VALUES ({arkivreferanse}, {ftbid})
-            ON CONFLICT (arkivreferanse) DO UPDATE SET ftbid = EXCLUDED.ftbid
-            """, avbrudd);
+        // Fast rekkefølge begrenser faren for vranglås ved overlappende lister.
+        // Ved gjentatt ReferanseId i listen gjelder den siste oppføringen.
+        foreach (var tilknytning in tilknytninger.GroupBy(t => t.ReferanseId, StringComparer.Ordinal).Select(g => g.Last())
+                     .OrderBy(t => t.ReferanseId, StringComparer.Ordinal))
+        {
+            var metadata = tilknytning;
+            await database.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO skjemametadata (arkivreferanse, skjematype, tiltakstyper)
+                VALUES ({metadata.ReferanseId}, {metadata.Typebeskrivelse}, {metadata.Tiltakstyper.ToArray()})
+                ON CONFLICT (arkivreferanse) DO UPDATE
+                SET skjematype = EXCLUDED.skjematype, tiltakstyper = EXCLUDED.tiltakstyper
+                """, avbrudd);
+            await database.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO identifikasjonsmetadata (arkivreferanse, ftbid) VALUES ({metadata.ReferanseId}, {ftbid})
+                ON CONFLICT (arkivreferanse) DO UPDATE SET ftbid = EXCLUDED.ftbid
+                """, avbrudd);
+        }
+        await transaksjon.CommitAsync(avbrudd);
     }
 
     /// <inheritdoc />

@@ -74,7 +74,7 @@ Content-Type: application/json
   "Bygningsnummer": "300827824", "Bolignummer": "H0201", "Kommunenavn": "Oslo" }
 
 ### Søk (alle eiendomsfiltre må treffe samme eiendom)
-GET {{adresse}}/api/ftbid/sok?kommunenummer=0301&gaardsnummer=124&bolignummer=H0201
+GET {{adresse}}/api/ftbid?kommunenummer=0301&gaardsnummer=124&bolignummer=H0201
 Authorization: Bearer {{token}}
 
 ### Slett eiendom (også siste eiendom kan slettes)
@@ -82,11 +82,27 @@ DELETE {{adresse}}/api/ftbid/{{opprettet_ftbid}}/eiendom/{{eiendom_id}}
 Authorization: Bearer {{token}}
 
 ### Knytt referanse
-POST {{adresse}}/api/ftbid/tilknytt
+POST {{adresse}}/api/ftbid/{{opprettet_ftbid}}/tilknytninger
 Authorization: Bearer {{token}}
 Content-Type: application/json
 
-{ "Ftbid": "{{opprettet_ftbid}}", "ReferanseId": "urn:dibk:bygg:innsending-id:65465411-34184-13213" }
+{
+  "Tilknytninger": [
+    {
+      "ReferanseId": "urn:dibk:bygg:innsending-id:65465411-34184-13213",
+      "Typebeskrivelse": "Søknad om rammetillatelse",
+      "Tiltakstyper": ["nybygg"]
+    }
+  ]
+}
 
 ### Helsesjekk
 GET {{adresse}}/helse
+
+### List alle ftbid-er (50 per side)
+GET {{adresse}}/api/ftbid?side=1
+Authorization: Bearer {{token}}
+
+### List alle eiendommer (50 per side)
+GET {{adresse}}/api/ftbid/eiendom?side=1
+Authorization: Bearer {{token}}

@@ -43,11 +43,11 @@ public sealed class MaskinportenFlaggTester(PostgresApiOppsett oppsett)
         });
         Assert.Equal(aktivert ? HttpStatusCode.Unauthorized : HttpStatusCode.OK, oppretting.StatusCode);
         var ftbid = aktivert ? "709999900000000017" : (await oppretting.Content.ReadFromJsonAsync<string>())!;
-        using var tilknytning = await klient.PostAsJsonAsync("/api/ftbid/tilknytt", new TilknyttFtbid
-        { Ftbid = ftbid, ReferanseId = arkivreferanse });
+        using var tilknytning = await klient.PostAsJsonAsync($"/api/ftbid/{ftbid}/tilknytninger", new TilknyttFtbidForesporsel
+        { Tilknytninger = [new() { ReferanseId = arkivreferanse }] });
         Assert.Equal(aktivert ? HttpStatusCode.Unauthorized : HttpStatusCode.NoContent, tilknytning.StatusCode);
         using var oppslag = await klient.GetAsync("/api/ftbid/" + ftbid);
-        using var sok = await klient.GetAsync("/api/ftbid/sok?kommunenummer=0301");
+        using var sok = await klient.GetAsync("/api/ftbid?kommunenummer=0301");
         Assert.Equal(aktivert ? HttpStatusCode.Unauthorized : HttpStatusCode.OK, oppslag.StatusCode);
         Assert.Equal(aktivert ? HttpStatusCode.Unauthorized : HttpStatusCode.OK, sok.StatusCode);
         if (!aktivert)

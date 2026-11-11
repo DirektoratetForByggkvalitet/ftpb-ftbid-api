@@ -5,6 +5,6 @@ namespace Ftpb.Ftbid.Application.Services;
 /// <summary>Tilknytning av URN-referanser til skjemaer, rapporter og andre ressurser.</summary>
 public interface IFtbidTilknytningService
 {
-    /// <summary>Knytter en eksisterende ftbid til en eksisterende URN-referanse.</summary>
+    /// <summary>Registrerer metadata og knytter en liste av URN-referanser til en eksisterende ftbid.</summary>
     Task TilknyttAsync(TilknyttFtbid foresporsel, CancellationToken avbrudd = default);
 }

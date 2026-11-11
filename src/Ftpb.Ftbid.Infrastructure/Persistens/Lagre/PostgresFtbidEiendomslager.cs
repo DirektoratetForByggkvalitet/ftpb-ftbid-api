@@ -1,3 +1,4 @@
+using Ftpb.Ftbid.Application.Kontrakter;
 using Ftpb.Ftbid.Application.Lagring;
 using Ftpb.Ftbid.Domain.Feil.Unntak;
 using Ftpb.Ftbid.Domain.Prosjekter;
@@ -9,6 +10,14 @@ namespace Ftpb.Ftbid.Infrastructure.Persistens.Lagre;
 /// <summary>Endrer en eiendom og dens adresser atomisk, uten å miste samtidige endringer.</summary>
 public sealed class PostgresFtbidEiendomslager(FtbidDbContext database) : IFtbidEiendomslager
 {
+    /// <inheritdoc />
+    public async Task<PaginertResultat<Eiendom>> ListeAsync(Paginering paginering, CancellationToken avbrudd = default)
+    {
+        var rader = await database.Set<Eiendom>().AsNoTracking().AsSplitQuery().Include(e => e.Adresse).OrderBy(e => e.Id)
+            .Skip(paginering.BeregnForskyvning()).Take(Paginering.Sidestorrelse + 1).ToListAsync(avbrudd);
+        return PaginertResultat<Eiendom>.Opprett(rader, paginering.Side);
+    }
+
     /// <inheritdoc />
     public Task LeggTilAsync(string ftbid, Eiendom eiendom, CancellationToken avbrudd) => EndreAsync(ftbid, async prosjekt =>
     {

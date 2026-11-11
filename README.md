@@ -78,14 +78,14 @@ Felles tekstvalidering og normalisering er interne hjelpefunksjoner i Applicatio
 | Metode | Sti | Scope | Svar ved suksess |
 | --- | --- | --- | --- |
 | POST | `/api/ftbid` | `dibk:bygg/ftbid.endre` | 200 med ftbid som JSON-streng; 409 ved dublett |
-| POST | `/api/ftbid/tilknytt` | `dibk:bygg/ftbid.endre` | 204 |
-| GET | `/api/ftbid/sok` | `dibk:bygg/ftbid.les` | 200 med liste av prosjekter og metadata; 404 uten treff |
+| POST | `/api/ftbid/{ftbid}/tilknytninger` | `dibk:bygg/ftbid.endre` | 204 |
+| GET | `/api/ftbid` | `dibk:bygg/ftbid.les` | 200 med liste av prosjekter og metadata; 404 uten treff |
 | GET | `/api/ftbid/{ftbid}` | `dibk:bygg/ftbid.les` | 200 med liste, tom ved ukjent ftbid |
 | POST | `/api/ftbid/{ftbid}/eiendom` | `dibk:bygg/ftbid.endre` | 204 |
 | PUT | `/api/ftbid/{ftbid}/eiendom/{eiendomId}` | `dibk:bygg/ftbid.endre` | 204 |
 | DELETE | `/api/ftbid/{ftbid}/eiendom/{eiendomId}` | `dibk:bygg/ftbid.endre` | 204 |
 
-API-ruter og JSON-feltnavn er på norsk. Tilknytning bruker `Ftbid` og `ReferanseId`, og svarene bruker `Tilknytninger` med `ReferanseId`, `Typebeskrivelse` og `Tiltakstyper`. Strukturen støtter skjemaer, rapporter og andre referanser. JSON-svar inkluderer nullverdier, tomme strenger og tomme lister, også i nestede objekter og feilsvar. Verdiene bevares som `null`, `""` og `[]`. JSON-inndata er ikke følsomme for store og små bokstaver. Dette er en bevisst endring fra adapterens engelske ruter og JSON-feltnavn; klienter må oppdateres til den nye kontrakten.
+API-ruter og JSON-feltnavn er på norsk. Tilknytning bruker `Ftbid` og en liste `Tilknytninger`, og svarene bruker `Tilknytninger` med `ReferanseId`, `Typebeskrivelse` og `Tiltakstyper`. Strukturen støtter skjemaer, rapporter og andre referanser. JSON-svar inkluderer nullverdier, tomme strenger og tomme lister, også i nestede objekter og feilsvar. Verdiene bevares som `null`, `""` og `[]`. JSON-inndata er ikke følsomme for store og små bokstaver. Dette er en bevisst endring fra adapterens engelske ruter og JSON-feltnavn; klienter må oppdateres til den nye kontrakten.
 
 ### Eiendomsmodell og oppretting
 
@@ -148,13 +148,39 @@ En dublett avvises med **409 Conflict** og ProblemDetails med `ftbidFeil.Kode = 
 
 EAN-formatet er sju sifre GS1-prefiks, tre reserverte nuller, sju sifre PostgreSQL-sekvens og ett kontrollsiffer. Grunnkonfigurasjonen beholder adapterens eksempelprefiks `7099999`. Lokal utvikling bruker `7073387`, som samsvarer med det importerte v1-uttrekket. Prefikset kan endres med `Ftbid__Gs1Prefiks`; bruk samme prefiks som datagrunnlaget for kortoppslag. Sekvensen kan ikke gå rundt og gjenbruke identifikatorer.
 
+Søk bruker nå `GET /api/ftbid` i stedet for `/api/ftbid/sok`. Tilknytning bruker `POST /api/ftbid/{ftbid}/tilknytninger` i stedet for `/api/ftbid/tilknytt`, og `Ftbid` utgår fra request body. Klienter må oppdatere disse kallene.
+
+### Paginerte lister
+
+`GET /api/ftbid?side=1` uten søkefiltre lister alle ftbid-er med prosjektdata, eiendommer og tilknytninger.
+`GET /api/ftbid/eiendom?side=1` lister alle eiendomsrader på tvers av prosjekter. Hvert resultat har `Ftbid` og `Eiendom` med ID, matrikkelopplysninger og adresser.
+Begge krever `dibk:bygg/ftbid.les`. `side` er valgfri og starter på 1. Sidestørrelsen er fast 50.
+Svaret har `Resultater`, `Side`, `Sidestorrelse` og `HarNesteSide`. Be om neste side ved å øke `side` med 1 så lenge `HarNesteSide` er `true`.
+Ugyldige sidetall gir 400. Sider uten treff gir 200 med tom `Resultater` og `HarNesteSide: false`.
+Ftbid-er sorteres på ftbid og eiendommer på ID. Listene viser gjeldende data ved hvert kall; samtidige endringer kan forskyve sidegrensene.
+
 ### Tilknytning og oppslag
 
+Send `POST /api/ftbid/{ftbid}/tilknytninger` med følgende JSON-body:
+
 ```json
-{ "Ftbid": "707338700000000014", "ReferanseId": "urn:dibk:bygg:innsending-id:65465411-34184-13213" }
+{
+  "Tilknytninger": [
+    {
+      "ReferanseId": "urn:dibk:bygg:innsending-id:65465411-34184-13213",
+      "Typebeskrivelse": "Søknad om rammetillatelse",
+      "Tiltakstyper": ["nybygg"]
+    },
+    {
+      "ReferanseId": "urn:dibk:bygg:rapport-id:65465411-34184-13213",
+      "Typebeskrivelse": "Rapport bygningsavfall",
+      "Tiltakstyper": ["nybygg"]
+    }
+  ]
+}
 ```
 
-Referansen må finnes i `skjemametadata`, og ftbid må finnes i `ftbid`. En referanse kan være tilknyttet én ftbid om gangen. Gjentatt tilknytning er idempotent; tilknytning til en annen ftbid flytter referansen. Full ftbid og de siste åtte sifrene kan brukes til oppslag; kortformen utvides med konfigurert GS1-prefiks og tre nuller.
+Send en ikke-tom liste `Tilknytninger`. Ftbid angis i URL-en og må finnes i `ftbid`. Referansemetadata opprettes eller oppdateres fra `Typebeskrivelse` (maksimalt 500 tegn, kan være null) og `Tiltakstyper` (kan være tom, men ikke null eller inneholde blanke verdier). Hele listen valideres og lagres atomisk. Tilknytninger som ikke er med i listen beholdes. Ved gjentatt `ReferanseId` i listen gjelder siste oppføring. Dette erstatter det tidligere enkeltfeltet `ReferanseId` på toppnivå. En referanse kan være tilknyttet én ftbid om gangen. Gjentatt tilknytning er idempotent; tilknytning til en annen ftbid flytter referansen. Full ftbid og de siste åtte sifrene kan brukes til oppslag; kortformen utvides med konfigurert GS1-prefiks og tre nuller.
 
 `ReferanseId` er påkrevd og må være en syntaktisk gyldig URN etter [RFC 8141](https://www.rfc-editor.org/rfc/rfc8141.html), med maksimalt 80 tegn etter trimming. URN-en må ha prefikset `urn:`, et navnerom med 2–32 ASCII-bokstaver/sifre/bindestrek (bokstav eller siffer først og sist), og en ikke-tom navneromsspesifikk referanse. Mellomrom og uescaped Unicode er ikke tillatt; prosentkoding må ha to heksadesimale sifre. Valgfrie r-, q- og fragmentkomponenter støttes. Det gjøres ikke oppslag i navneromsregistre. Ugyldig URN gir HTTP 400 med ProblemDetails, en norsk feilmelding som nevner `ReferanseId` og feilkode `V0073`. Manglende verdi gir `V0042`, og for lang verdi gir `V0047`.
 
@@ -192,7 +218,7 @@ Vellykkede endringer gir 204. Ukjent ftbid gir `V0054`, og erstatning av en eien
 
 ### Søk
 
-`GET /api/ftbid/sok` krever minst ett ikke-tomt filter. Alle oppgitte filtre kombineres med **OG**. Tekst trimmes og sammenlignes uten hensyn til store og små bokstaver.
+`GET /api/ftbid` uten ikke-tomme søkefiltre returnerer en paginert liste (se ovenfor). Med søkefiltre returneres en vanlig resultatliste som tidligere, og `side` brukes ikke til å paginere søket. Alle oppgitte filtre kombineres med **OG**. Tekst trimmes og sammenlignes uten hensyn til store og små bokstaver.
 
 | Kriterium | Søkeparameter | Treffregel |
 | --- | --- | --- |
@@ -212,11 +238,11 @@ Matrikkelnummer må være ikke-negative. Utelatt feste- eller seksjonsnummer avg
 Oppretting og oppslag inkluderer `AnsvarligSokerOrganisasjonsnummer` (ni sifre); `Bolignummer` ligger under `Eiendom`. Verdiene må registreres ved oppretting for å kunne gi treff; det eksisterende organisasjonsnummeret kopieres ikke til ansvarlig søker. Migrationen `FjernFtIdType` fjerner den tidligere identifikatortypen fra databasen. Prosjekter har ikke et eget statusfelt; status i helsesvar og ProblemDetails beskriver tjenesten og HTTP-svaret.
 
 ```text
-GET /api/ftbid/sok?kommunenummer=0301&gaardsnummer=10
-GET /api/ftbid/sok?adresse=storgata&prosjektnavn=utvidelse
-GET /api/ftbid/sok?ftid=707338700000000014
-GET /api/ftbid/sok?ansvarligsokerorganisasjonsnummer=123456789&bolignummer=H0101
-GET /api/ftbid/sok?kommunenummer=0301&gaardsnummer=10&bruksnummer=1&festenummer=0&seksjonsnummer=2
+GET /api/ftbid?kommunenummer=0301&gaardsnummer=10
+GET /api/ftbid?adresse=storgata&prosjektnavn=utvidelse
+GET /api/ftbid?ftid=707338700000000014
+GET /api/ftbid?ansvarligsokerorganisasjonsnummer=123456789&bolignummer=H0101
+GET /api/ftbid?kommunenummer=0301&gaardsnummer=10&bruksnummer=1&festenummer=0&seksjonsnummer=2
 ```
 
 Dubletter gir 409 med eksisterende ftbid i ProblemDetails, uten Location-header. Søk uten treff gir 404 med kode `V0072`. Valideringsfeil gir 400 med standard ProblemDetails og norsk feilmelding. Uventede interne feil gir 500 med ProblemDetails, en generell norsk feilmelding og sporingsidentifikator. Dette forbedrer adapterens oppførsel, som også returnerte 400 for interne feil. Manglende eller ugyldig token gir 401; utilstrekkelige scopes gir 403. Oppretting begrenses til 200 forespørsler per minutt per konsument og API-instans, med 429 ved overskridelse.
