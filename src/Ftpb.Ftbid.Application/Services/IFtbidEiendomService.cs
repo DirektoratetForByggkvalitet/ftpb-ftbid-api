@@ -5,6 +5,8 @@ namespace Ftpb.Ftbid.Application.Services;
 /// <summary>Endrer eiendommer med strukturerte adresser og identifikasjon.</summary>
 public interface IFtbidEiendomService
 {
+    /// <summary>Lister alle poster med fast sidestørrelse og stabil sortering.</summary>
+    Task<PaginertResultat<EiendomListeResultat>> ListeAsync(Paginering paginering, CancellationToken avbrudd = default);
     /// <summary>Legger til en eiendom.</summary>
     Task LeggTilAsync(string ftbid, Eiendomsdata eiendom, CancellationToken avbrudd = default);
     /// <summary>Erstatter eiendommen med angitt ID.</summary>

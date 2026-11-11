@@ -67,6 +67,7 @@ bygger.Services.AddEndpointsApiExplorer();
 bygger.Services.AddSwaggerGen(valg =>
 {
     valg.SchemaFilter<TilknytningSkjemaFilter>();
+    valg.OperationFilter<FtbidSokOperasjonsfilter>();
     valg.SwaggerDoc("v1", new OpenApiInfo { Title = "Ftbid-servicen", Version = "v1", Description = "Prosjektidentifikatorer og identifikasjonsmetadata." });
     if (maskinportenAktivert)
     {

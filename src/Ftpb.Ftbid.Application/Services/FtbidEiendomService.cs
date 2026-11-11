@@ -12,6 +12,14 @@ public sealed class FtbidEiendomService(IFtbidEiendomslager lager, IKommuneregis
     FtbidInnstillinger innstillinger) : IFtbidEiendomService
 {
     /// <inheritdoc />
+    public async Task<PaginertResultat<EiendomListeResultat>> ListeAsync(Paginering paginering, CancellationToken avbrudd = default)
+    {
+        var side = await lager.ListeAsync(paginering, avbrudd);
+        return new(side.Resultater.Select(e => new EiendomListeResultat(e.Ftbid, EiendomResultat.FraEntitet(e))).ToList(),
+            side.Side, side.HarNesteSide);
+    }
+
+    /// <inheritdoc />
     public async Task LeggTilAsync(string ftbid, Eiendomsdata eiendom, CancellationToken avbrudd = default)
     {
         var id = NormaliserFtbid(ftbid, innstillinger);

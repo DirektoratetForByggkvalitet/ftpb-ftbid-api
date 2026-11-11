@@ -32,7 +32,7 @@ public sealed class TiltakstyperTester(PostgresApiOppsett oppsett)
         Assert.Equal(["Tilbygg", "Riving"], resultat.Tiltakstyper);
         foreach (var type in resultat.Tiltakstyper)
         {
-            var treff = await klient.GetFromJsonAsync<List<FtbidResultat>>($"/api/ftbid/sok?ftid={ftbid}&tiltakstype={type.ToUpperInvariant()}");
+            var treff = await klient.GetFromJsonAsync<List<FtbidResultat>>($"/api/ftbid?ftid={ftbid}&tiltakstype={type.ToUpperInvariant()}");
             Assert.Equal(ftbid, Assert.Single(treff!).Ftbid);
         }
         await using var database = Database();

@@ -152,7 +152,9 @@ public sealed class FtbidMatrikkelTester
         public Task ErstattAsync(string ftbid, long eiendomId, Ftpb.Ftbid.Domain.Prosjekter.Eiendom eiendom, CancellationToken avbrudd) { EiendomId = eiendomId; return LeggTilAsync(ftbid, eiendom, avbrudd); }
         public Task FjernAsync(string ftbid, long eiendomId, CancellationToken avbrudd) { EndretFtbid = ftbid; EiendomId = eiendomId; Fjernet = true; return Task.CompletedTask; }
         public Task<IReadOnlyList<FtbidEntitet>> HentAsync(string ftbid, CancellationToken avbrudd) => Task.FromResult<IReadOnlyList<FtbidEntitet>>([Opprettet!]);
-        public Task TilknyttAsync(string ftbid, string arkivreferanse, CancellationToken avbrudd) => throw new NotSupportedException();
+        public Task TilknyttAsync(string ftbid, IReadOnlyList<Tilknytning> tilknytninger, CancellationToken avbrudd) => throw new NotSupportedException();
+        Task<PaginertResultat<FtbidEntitet>> IFtbidLager.ListeAsync(Paginering paginering, CancellationToken avbrudd) => throw new NotSupportedException();
+        Task<PaginertResultat<Ftpb.Ftbid.Domain.Prosjekter.Eiendom>> IFtbidEiendomslager.ListeAsync(Paginering paginering, CancellationToken avbrudd) => throw new NotSupportedException();
         public Task<IReadOnlyList<FtbidEntitet>> SokAsync(FtbidSok filter, CancellationToken avbrudd) => throw new NotSupportedException();
     }
 }

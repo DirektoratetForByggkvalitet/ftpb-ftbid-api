@@ -5,6 +5,8 @@ namespace Ftpb.Ftbid.Application.Services;
 /// <summary>Oppslag og søk i prosjektdata og metadata.</summary>
 public interface IFtbidOppslagService
 {
+    /// <summary>Lister alle poster med fast sidestørrelse og stabil sortering.</summary>
+    Task<PaginertResultat<FtbidResultat>> ListeAsync(Paginering paginering, CancellationToken avbrudd = default);
     /// <summary>Henter metadata med full ftbid eller de siste åtte sifrene.</summary>
     Task<IReadOnlyList<FtbidResultat>> HentAsync(string ftbid, CancellationToken avbrudd = default);
     /// <summary>Søker med minst ett filter og returnerer tilknytninger.</summary>
