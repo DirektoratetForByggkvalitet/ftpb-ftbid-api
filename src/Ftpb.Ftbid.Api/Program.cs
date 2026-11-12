@@ -80,6 +80,9 @@ bygger.Services.AddSwaggerGen(valg =>
     }
 });
 var app = bygger.Build();
+var importerDevdata = bygger.Configuration.GetValue<bool>("Database:ImporterDevdata");
+if (importerDevdata && !bygger.Environment.IsDevelopment())
+    throw new InvalidOperationException("Database:ImporterDevdata er bare tillatt i Development.");
 if (args.Contains("--migrer", StringComparer.Ordinal) || args.Contains("--importer", StringComparer.Ordinal))
 {
     using var omfang = app.Services.CreateScope();
@@ -94,10 +97,18 @@ if (args.Contains("--migrer", StringComparer.Ordinal) || args.Contains("--import
     }
     return;
 }
-if (bygger.Configuration.GetValue<bool>("Database:MigrerVedOppstart"))
+if (bygger.Configuration.GetValue<bool>("Database:MigrerVedOppstart") || importerDevdata)
 {
     using var omfang = app.Services.CreateScope();
     await omfang.ServiceProvider.GetRequiredService<FtbidDbContext>().Database.MigrateAsync();
+}
+if (importerDevdata)
+{
+    using var omfang = app.Services.CreateScope();
+    var importert = await DevdataImport.ImporterAsync(
+        omfang.ServiceProvider.GetRequiredService<FtbidDbContext>(),
+        Path.Combine(AppContext.BaseDirectory, "devdata", "lokal.sql.gz"));
+    app.Logger.LogInformation("Devdata: {Resultat}", importert ? "Importert fra lokalt snapshot" : "Allerede importert");
 }
 app.UseExceptionHandler();
 app.UseStatusCodePages();

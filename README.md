@@ -416,6 +416,34 @@ Sikkerhetskopier, SQL-import og rapport med alle syntetiske verdier finnes lokal
 
 ## Database og miljøer
 
+### Engangsimport av lokal database ved dev-deploy
+
+Dev-imaget inneholder `data/dev-seed/lokal.sql.gz`, et datadump fra lokal Compose-PostgreSQL.
+Dumpet inneholder også de syntetiske testdataene i den lokale databasen. Det inneholder
+ikke DDL, databasebrukere, passord eller EF-migrasjonshistorikk. Oppdater snapshotet ved behov:
+
+```sh
+python3 scripts/eksporter_devdata.py
+```
+
+Snapshotet må sjekkes inn sammen med kodeendringene for å være tilgjengelig i GitHub Actions.
+Byggworkflowen inkluderer det i det ferdige imaget bare for dev. Dev-deploy setter
+`ASPNETCORE_ENVIRONMENT=Development`, `Database__ImporterDevdata=true` og
+`Ftbid__Gs1Prefiks=7073387`. API-et bruker sin eksisterende databaseforbindelse og
+Entra-identitet; GitHub-runneren trenger ingen direkte databasetilgang.
+
+Ved oppstart kjøres migrasjoner før dataimporten. Alle seks datatabeller må være tomme;
+eksisterende data blir aldri slettet eller overskrevet. Import og markering i
+`public.__devdata_import` gjøres i én transaksjon under samme lås som API-ets skriving.
+Dumpet bevarer ID-er, relasjoner og sekvensverdier. Ved feil rulles radene tilbake;
+PostgreSQL-sekvenser kan likevel være flyttet frem. Neste oppstart kan prøve igjen.
+Senere oppstarter og deploys hopper over importen når markeringen finnes, også hvis
+snapshotet senere endres. Et nytt snapshot er derfor ikke en synkroniseringsmekanisme.
+
+Hvis dev allerede har data uten importmarkering, avbrytes oppstarten med en tydelig feil.
+Da må eksisterende dev-data avklares før førstegangsimport; løsningen tømmer ikke databasen.
+Importflagget avvises utenfor `Development`, og test-/prod-imager inneholder ikke dumpet.
+
 `ftbid` bevarer opplysningene fra `Ftbids`, inkludert EAN, prosjektinformasjon, system og utstedelsestidspunkt. `identifikasjonsmetadata` bevarer relasjonen fra `FormWorkflowLogs`: arkivreferanse og ftbid. `eiendom` inneholder identifikasjon, bygningsnummer, bolignummer og kommunenavn per eiendom; `eiendomsadresse` inneholder de strukturerte adressene. En ftbid kan ha null eiendommer. `skjemametadata` og `kommune` inneholder nødvendige referansedata.
 
 | ASPNETCORE_ENVIRONMENT | Maskinporten | PostgreSQL | Migrering ved oppstart | Swagger |

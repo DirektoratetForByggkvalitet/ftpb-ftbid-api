@@ -67,7 +67,9 @@ jobs:
       # Image tag = release version, never 'latest' (see docs/FT-1999-status-drift.md).
       - name: Build ftbid api
         run: |
-          docker build -f Dockerfile -t $IMAGE .
+          INCLUDE_DEV_DATA=false
+          if [ "${{ needs.setup.outputs.environment }}" = "dev" ]; then INCLUDE_DEV_DATA=true; fi
+          docker build --build-arg INCLUDE_DEV_DATA=$INCLUDE_DEV_DATA -f Dockerfile -t $IMAGE .
 
       - name: Push ftbid api
         if: needs.setup.outputs.environment != ''

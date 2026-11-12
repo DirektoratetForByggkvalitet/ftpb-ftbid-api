@@ -11,4 +11,9 @@
 tests/
 scripts/
 data/
+!data/
+data/*
+!data/dev-seed/
+data/dev-seed/*
+!data/dev-seed/lokal.sql.gz
 *.http

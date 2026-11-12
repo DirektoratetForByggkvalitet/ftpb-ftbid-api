@@ -11,11 +11,17 @@ RUN dotnet restore src/Ftpb.Ftbid.Api/Ftpb.Ftbid.Api.csproj
 COPY src/ src/
 RUN dotnet publish src/Ftpb.Ftbid.Api/Ftpb.Ftbid.Api.csproj --no-restore -c Release -o /utdata
 
+# Bare dev-bygg tar med snapshotet i det ferdige imaget.
+ARG INCLUDE_DEV_DATA=false
+COPY data/dev-seed/lokal.sql.gz /tmp/lokal.sql.gz
+RUN mkdir /devdata && if [ "$INCLUDE_DEV_DATA" = "true" ]; then cp /tmp/lokal.sql.gz /devdata/; fi
+
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app
 # Curl brukes av containerens helsesjekk.
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 COPY --from=bygg /utdata .
+COPY --from=bygg /devdata ./devdata
 USER $APP_UID
 ENV ASPNETCORE_HTTP_PORTS=8080
 EXPOSE 8080
