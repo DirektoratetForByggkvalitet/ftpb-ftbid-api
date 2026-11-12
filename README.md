@@ -43,6 +43,12 @@ API-containerens port 8080 publiseres som `localhost:5080`. PostgreSQL og API-et
 
 Compose oppretter databasen `ftbid` på `localhost:55432`, med brukernavn `ftbid` og lokalt passord `ftbid_lokal`. Porten bindes bare til lokal maskin. Data beholdes i et Docker-volum. Eksempelfilen inneholder **kun Oslo og én eksempelarkivreferanse**; den er ikke et komplett kommuneregister. Importer egne referansedata før reell bruk.
 
+## Logging og Elastic APM
+
+Serilog logger til konsollen og registrerer HTTP-kall, med APM-korrelasjon som i NIREG. Når `Serilog:ConnectionUrl`, `Serilog:Username` og `Serilog:Password` er satt, sendes loggene også til Elasticsearch-datastrømmen `logs-ftbid-backend`. Development, Test og Production bruker samme miljøspesifikke Elastic-adresser som NIREG.
+
+Elastic APM bruker `ServiceName` lik `Ftbid.Backend` og automatisk instrumentering. Sett hemmelighetene via konfigurasjonsleverandøren i driftsmiljøet, for eksempel miljøvariablene `ElasticApm__SecretToken`, `Serilog__Username` og `Serilog__Password`. `ElasticApm__ServerUrls` og `Serilog__ConnectionUrl` kan overstyre adressene. `Serilog__SelfLogEnabled=true` aktiverer intern Serilog-diagnostikk. For lokal kjøring uten APM kan `ElasticApm__Enabled=false` settes.
+
 ## Prosjekter og ansvar
 
 | Prosjekt | Ansvar |
