@@ -349,6 +349,12 @@ HTTP-endepunktene gjør ingen oppslag mot Kartverkets Matrikkel. Lokal kommune- 
 
 En valgfri background worker henter adresser for eksisterende eiendomsrader fra Kartverkets Matrikkel SOAP-API, på samme måte som Niregs Matrikkel-integrasjon. Jobben er **deaktivert som standard** og gjør da ingen database- eller Matrikkel-oppslag. API-endepunktene venter ikke på Matrikkel.
 
+`appsettings.Development.json` aktiverer jobben med `Adresseberikelse:Aktivert=true`. Matrikkel-brukernavn og
+passord må være konfigurert i dev-miljøet. Test og produksjon beholder standardverdien.
+Dev bruker batchstørrelse 500, pause 500 ms mellom eiendomsoppslag og 360 minutter
+etter en full gjennomgang, tilsvarende Niregs batchstørrelse, pauseverdi og seks timers kjøreintervall.
+Det er ingen egen pause mellom batcher eller automatisk ny behandling etter 30 dager.
+
 Kjør migrasjonen `LeggTilAdresseberikelse` før aktivering. Den legger bare til den nullable statuskolonnen `eiendom.matrikkel_adresser_hentet`; eksisterende adresser endres ikke av migrasjonen. Local bruker fortsatt automatisk migrering ved oppstart. I andre miljøer brukes prosjektets vanlige `--migrer`-kommando som et eget utrullingssteg.
 
 Konfigurer følgende miljøvariabler og start API-et på nytt:
@@ -370,7 +376,7 @@ Eksisterende adresser beholdes, og nye legges etter siste adresseposisjon. Adres
 
 Status og adresser lagres atomisk per eiendom. Et vellykket oppslag med null adresser merkes også fullført. Ved feil lagres ingen delvise adresser eller fullført-status, og jobben fortsetter med neste eiendom. Etter gjennomgangen kontrolleres nye og feilede rader igjen etter `IntervallMinutter=60` (minst 1). Fullførte rader hoppes over ved omstart. Hvis eldre utgave av jobben allerede har fullført kun direkte oppslag, må statusen for de berørte eiendomsradene nullstilles (`matrikkel_adresser_hentet = NULL`) for at adresser via bygg skal etterfylles; eksisterende adresser beholdes. Dette er etterfylling, ikke løpende synkronisering av senere adresseendringer i Matrikkelen. PUT av en eiendom nullstiller dens status, slik at også de nye opplysningene kan berikes.
 
-Sett `Adresseberikelse:Aktivert=false` for å deaktivere jobben. Ved endring i appsettings med konfigurasjonsreload oppdages flagget løpende; et pågående SOAP-oppslag får avslutte, og flagget sjekkes igjen før lagring. Endringer i miljøvariabler krever omstart. Deaktivering sletter ikke adresser eller fremdrift. Logger viser eiendoms-ID, antall treff og nye adresser, samt feil som må følges opp. Jobben er ikke aktivert eller kjørt mot utviklings- eller produksjonsdata som del av implementeringen.
+Sett `Adresseberikelse:Aktivert=false` for å deaktivere jobben. Ved endring i appsettings med konfigurasjonsreload oppdages flagget løpende; et pågående SOAP-oppslag får avslutte, og flagget sjekkes igjen før lagring. Endringer i miljøvariabler krever omstart. Deaktivering sletter ikke adresser eller fremdrift. Logger viser eiendoms-ID, antall treff og nye adresser, samt feil som må følges opp.
 
 SOAP-proxyen i `Infrastructure/Matrikkel/Generert/Matrikkel.g.cs` er gjenbrukt fra Niregs genererte `Integrations/Matrikkel.cs` (lokal referanse ved commit `fcc28b2`). XML-kontraktene er beholdt; C#-navnerommet er flyttet inn under ftbid og nullable-analyse er slått av i den genererte filen. Integrasjonen bruker WCF-klientbiblioteket `System.ServiceModel.Http`. Se [Kartverkets MatrikkelAPI-dokumentasjon](https://kartverket.github.io/api-dokumentasjon/docs/eiendom/matrikkel/matrikkelen/matrikkelapi/).
 
