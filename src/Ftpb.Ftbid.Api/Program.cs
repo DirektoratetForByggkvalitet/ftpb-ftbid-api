@@ -17,8 +17,12 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi;
+using Serilog;
 
 var bygger = WebApplication.CreateBuilder(args);
+bygger.Services.AddAllElasticApm();
+bygger.Host.UseSerilog((kontekst, logging) =>
+    SerilogConfiguration.ConfigureLogging(logging, kontekst.Configuration, "logs-ftbid-backend"));
 var maskinportenAktivert = bygger.Configuration.GetValue("Maskinporten:Aktivert", true);
 bygger.Services.LeggTilFtbidServices(bygger.Configuration, bygger.Environment);
 bygger.Services.AddControllers().AddJsonOptions(valg =>
@@ -80,6 +84,7 @@ bygger.Services.AddSwaggerGen(valg =>
     }
 });
 var app = bygger.Build();
+app.UseSerilogRequestLogging();
 var importerDevdata = bygger.Configuration.GetValue<bool>("Database:ImporterDevdata");
 if (importerDevdata && !bygger.Environment.IsDevelopment())
     throw new InvalidOperationException("Database:ImporterDevdata er bare tillatt i Development.");
