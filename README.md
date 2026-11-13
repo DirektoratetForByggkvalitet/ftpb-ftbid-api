@@ -45,6 +45,8 @@ Compose oppretter databasen `ftbid` på `localhost:55432`, med brukernavn `ftbid
 
 ## Logging og Elastic APM
 
+I `appsettings.Local.json` er `ElasticApm:Enabled` og `Serilog:Enabled` satt til `false`. Local bruker dermed vanlig .NET-logging uten Elastic APM eller Serilog. Begge er aktivert som standard i andre miljøer og kan styres via de samme konfigurasjonsnøklene.
+
 Serilog logger til konsollen og registrerer HTTP-kall, med APM-korrelasjon som i NIREG. Når `Serilog:ConnectionUrl`, `Serilog:Username` og `Serilog:Password` er satt, sendes loggene også til Elasticsearch-datastrømmen `logs-ftbid-backend`. Development, Test og Production bruker samme miljøspesifikke Elastic-adresser som NIREG.
 
 Elastic APM bruker `ServiceName` lik `Ftbid.Backend` og automatisk instrumentering. Sett hemmelighetene via konfigurasjonsleverandøren i driftsmiljøet, for eksempel miljøvariablene `ElasticApm__SecretToken`, `Serilog__Username` og `Serilog__Password`. `ElasticApm__ServerUrls` og `Serilog__ConnectionUrl` kan overstyre adressene. `Serilog__SelfLogEnabled=true` aktiverer intern Serilog-diagnostikk. For lokal kjøring uten APM kan `ElasticApm__Enabled=false` settes.
