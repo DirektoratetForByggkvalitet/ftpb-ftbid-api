@@ -4,6 +4,7 @@ namespace Ftpb.Ftbid.Application.Kontrakter;
 public sealed class FtbidResultat
 {
     public string Ftbid { get; set; } = "";
+    public DateTimeOffset Utstedt { get; set; }
     public string? EksternProsjektreferanse { get; set; }
     public string? KommunaltSaksnummer { get; set; }
     public string? Tiltakshaver { get; set; }

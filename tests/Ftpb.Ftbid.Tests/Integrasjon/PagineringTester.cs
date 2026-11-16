@@ -23,6 +23,7 @@ public sealed class PagineringTester(PostgresApiOppsett oppsett)
         var prosjekter = Enumerable.Range(0, 51).Select(i => new Prosjekt
         {
             Ean = EanGenerator.Lag("7099999", 9_000_000 + i),
+            Utstedt = new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero).AddMinutes(i),
             Prosjektnavn = "Paginering " + i,
             NormalisertProsjektnavn = "paginering " + i,
             Eiendom = Enumerable.Range(0, 2).Select(j => new Eiendom
@@ -41,6 +42,8 @@ public sealed class PagineringTester(PostgresApiOppsett oppsett)
             var forventetFtbid = await database.Ftbider.OrderBy(f => f.Ean).Select(f => f.Ean).ToListAsync();
             var ftbider = await HentAlleAsync<FtbidResultat>(klient, "/api/ftbid", forventetFtbid.Count);
             Assert.Equal(forventetFtbid, ftbider.Select(f => f.Ftbid));
+            foreach (var forventet in prosjekter)
+                Assert.Equal(forventet.Utstedt, Assert.Single(ftbider, f => f.Ftbid == forventet.Ean).Utstedt);
             var prosjekt = Assert.Single(ftbider, f => f.Ftbid == prosjekter[0].Ean);
             Assert.Equal(2, prosjekt.Eiendom.Count);
             Assert.Equal(new[] { "Første", "Andre" }, prosjekt.Eiendom[0].Adresse.Select(a => a.Adresselinje1));

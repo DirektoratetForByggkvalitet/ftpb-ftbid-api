@@ -44,6 +44,7 @@ public sealed class FtbidOppslagService(IFtbidLager lager, FtbidInnstillinger in
     private static FtbidResultat TilResultat(FtbidEntitet prosjekt)
     {
         return new() { Ftbid = prosjekt.Ean, Prosjektnavn = prosjekt.Prosjektnavn,
+            Utstedt = prosjekt.Utstedt,
             Prosjektnummer = prosjekt.Prosjektnummer,
             EksternProsjektreferanse = prosjekt.EksternProsjektreferanse, KommunaltSaksnummer = prosjekt.KommunaltSaksnummer,
             Tiltakshaver = prosjekt.Tiltakshaver, Organisasjonsnummer = prosjekt.Organisasjonsnummer,

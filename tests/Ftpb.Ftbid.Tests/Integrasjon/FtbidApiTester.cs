@@ -40,12 +40,19 @@ public sealed class FtbidApiTester(PostgresApiOppsett oppsett)
         Assert.StartsWith("7099999000", ftbid);
         var resultater = await klient.GetFromJsonAsync<List<FtbidResultat>>("/api/ftbid/" + ftbid);
         var resultat = Assert.Single(resultater!);
+        using var omfang = oppsett.Fabrikk.Services.CreateScope();
+        var utstedt = await omfang.ServiceProvider.GetRequiredService<FtbidDbContext>().Ftbider
+            .Where(f => f.Ean == ftbid).Select(f => f.Utstedt).SingleAsync();
+        Assert.NotEqual(default, utstedt);
+        Assert.Equal(utstedt, resultat.Utstedt);
         Assert.Equal(foresporsel.Prosjektnavn, resultat.Prosjektnavn);
         Assert.Equal("0301", resultat.Eiendom[0].Eiendomsidentifikasjon.Kommunenummer);
         Assert.Equal(2, resultat.Eiendom[0].Adresse.Count);
         Assert.Equal(2, resultat.Eiendom.Count);
         var kort = await klient.GetFromJsonAsync<List<FtbidResultat>>("/api/ftbid/" + ftbid[^8..]);
-        Assert.Equal(ftbid, Assert.Single(kort!).Ftbid);
+        var kortResultat = Assert.Single(kort!);
+        Assert.Equal(ftbid, kortResultat.Ftbid);
+        Assert.Equal(utstedt, kortResultat.Utstedt);
         var json = await klient.GetStringAsync("/api/ftbid/" + ftbid);
         Assert.Contains("\"Ftbid\"", json);
         Assert.Contains("\"Tilknytninger\"", json);
@@ -53,6 +60,7 @@ public sealed class FtbidApiTester(PostgresApiOppsett oppsett)
         {
             using var dokument = JsonDocument.Parse(await klient.GetStringAsync(url));
             var prosjekt = dokument.RootElement[0];
+            Assert.Equal(utstedt, prosjekt.GetProperty("Utstedt").GetDateTimeOffset());
             Assert.Equal(JsonValueKind.Null, prosjekt.GetProperty("KommunaltSaksnummer").ValueKind);
             Assert.Empty(prosjekt.GetProperty("Tilknytninger").EnumerateArray());
             var eiendom = prosjekt.GetProperty("Eiendom");
@@ -522,6 +530,8 @@ public sealed class FtbidApiTester(PostgresApiOppsett oppsett)
         Assert.Equal(80, inndata.GetProperty("ReferanseId").GetProperty("maxLength").GetInt32());
         var skjemaer = dokument.RootElement.GetProperty("components").GetProperty("schemas");
         Assert.True(skjemaer.GetProperty("FtbidResultat").GetProperty("properties").TryGetProperty("Tilknytninger", out _));
+        Assert.Equal("date-time", skjemaer.GetProperty("FtbidResultat").GetProperty("properties")
+            .GetProperty("Utstedt").GetProperty("format").GetString());
         var tilknytning = skjemaer.GetProperty("Tilknytning").GetProperty("properties");
         Assert.True(tilknytning.TryGetProperty("Typebeskrivelse", out _));
         Assert.True(tilknytning.TryGetProperty("Tiltakstyper", out _));

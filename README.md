@@ -160,6 +160,8 @@ Søk bruker nå `GET /api/ftbid` i stedet for `/api/ftbid/sok`. Tilknytning bruk
 
 ### Paginerte lister
 
+Alle FTBID-prosjektresponser ved oppslag, søk og listing inkluderer `Utstedt`, det lagrede utstedelsestidspunktet som ISO 8601-dato og klokkeslett med tidssone.
+
 `GET /api/ftbid?side=1` uten søkefiltre lister alle ftbid-er med prosjektdata, eiendommer og tilknytninger.
 `GET /api/ftbid/eiendom?side=1` lister alle eiendomsrader på tvers av prosjekter. Hvert resultat har `Ftbid` og `Eiendom` med ID, matrikkelopplysninger og adresser.
 Begge krever `dibk:bygg/ftbid.les`. `side` er valgfri og starter på 1. Sidestørrelsen er fast 50.
