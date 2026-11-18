@@ -361,10 +361,11 @@ HTTP-endepunktene gjør ingen oppslag mot Kartverkets Matrikkel. Lokal kommune- 
 
 En valgfri background worker henter adresser for eksisterende eiendomsrader fra Kartverkets Matrikkel SOAP-API, på samme måte som Niregs Matrikkel-integrasjon. Jobben er **deaktivert som standard** og gjør da ingen database- eller Matrikkel-oppslag. API-endepunktene venter ikke på Matrikkel.
 
-`appsettings.Development.json` aktiverer jobben med `Adresseberikelse:Aktivert=true`. Matrikkel-brukernavn og
-passord må være konfigurert i dev-miljøet. Test og produksjon beholder standardverdien.
-Dev bruker batchstørrelse 500, pause 500 ms mellom eiendomsoppslag og 360 minutter
-etter en full gjennomgang, tilsvarende Niregs batchstørrelse, pauseverdi og seks timers kjøreintervall.
+`appsettings.Local.json`, `appsettings.Development.json` og `appsettings.Test.json` aktiverer
+jobben med `Adresseberikelse:Aktivert=true`. Matrikkel-brukernavn og passord må være konfigurert
+i kjøremiljøet. Produksjon beholder standardverdien (deaktivert).
+Local, dev og test bruker batchstørrelse 500, pause 500 ms mellom eiendomsoppslag og 60 minutter
+etter en full gjennomgang.
 Det er ingen egen pause mellom batcher eller automatisk ny behandling etter 30 dager.
 
 Kjør migrasjonen `LeggTilAdresseberikelse` før aktivering. Den legger bare til den nullable statuskolonnen `eiendom.matrikkel_adresser_hentet`; eksisterende adresser endres ikke av migrasjonen. Local bruker fortsatt automatisk migrering ved oppstart. I andre miljøer brukes prosjektets vanlige `--migrer`-kommando som et eget utrullingssteg.
@@ -434,9 +435,9 @@ Sikkerhetskopier, SQL-import og rapport med alle syntetiske verdier finnes lokal
 
 ## Database og miljøer
 
-### Engangsimport av lokal database ved dev-deploy
+### Engangsimport av lokal database ved dev- og test-deploy
 
-Dev-imaget inneholder `data/dev-seed/lokal.sql.gz`, et datadump fra lokal Compose-PostgreSQL.
+Dev- og test-imaget inneholder `data/dev-seed/lokal.sql.gz`, et datadump fra lokal Compose-PostgreSQL.
 Dumpet inneholder også de syntetiske testdataene i den lokale databasen. Det inneholder
 ikke DDL, databasebrukere, passord eller EF-migrasjonshistorikk. Oppdater snapshotet ved behov:
 
@@ -445,12 +446,16 @@ python3 scripts/eksporter_devdata.py
 ```
 
 Snapshotet må sjekkes inn sammen med kodeendringene for å være tilgjengelig i GitHub Actions.
-Byggworkflowen inkluderer det i det ferdige imaget bare for dev. Dev-deploy setter
-`ASPNETCORE_ENVIRONMENT=Development`, `Database__ImporterDevdata=true` og
-`Ftbid__Gs1Prefiks=7073387`. API-et bruker sin eksisterende databaseforbindelse og
+Byggworkflowen inkluderer det i det ferdige imaget bare for dev og test. Deploy setter
+`ASPNETCORE_ENVIRONMENT=Development` i dev og `ASPNETCORE_ENVIRONMENT=Test` i test,
+samt `Database__ImporterDevdata=true` og `Ftbid__Gs1Prefiks=7073387` i begge miljøer.
+Test-deploy setter også `Maskinporten__Aktivert=true`: Test bruker full JWT-validering
+mot `https://test.maskinporten.no/`, med signatur, utløpstid, utsteder, konsument og scopes.
+Importen endrer ikke autentiseringsreglene. API-et bruker sin eksisterende databaseforbindelse og
 Entra-identitet; GitHub-runneren trenger ingen direkte databasetilgang.
 
-Ved oppstart kjøres migrasjoner før dataimporten. Alle seks datatabeller må være tomme;
+Ved oppstart kjøres migrasjoner før dataimporten. Adresseberikelsen starter etter at importen
+er fullført, og krever Matrikkel-legitimasjon i det aktuelle miljøet. Alle seks datatabeller må være tomme;
 eksisterende data blir aldri slettet eller overskrevet. Import og markering i
 `public.__devdata_import` gjøres i én transaksjon under samme lås som API-ets skriving.
 Dumpet bevarer ID-er, relasjoner og sekvensverdier. Ved feil rulles radene tilbake;
@@ -458,9 +463,10 @@ PostgreSQL-sekvenser kan likevel være flyttet frem. Neste oppstart kan prøve i
 Senere oppstarter og deploys hopper over importen når markeringen finnes, også hvis
 snapshotet senere endres. Et nytt snapshot er derfor ikke en synkroniseringsmekanisme.
 
-Hvis dev allerede har data uten importmarkering, avbrytes oppstarten med en tydelig feil.
-Da må eksisterende dev-data avklares før førstegangsimport; løsningen tømmer ikke databasen.
-Importflagget avvises utenfor `Development`, og test-/prod-imager inneholder ikke dumpet.
+Hvis dev eller test allerede har data uten importmarkering, avbrytes oppstarten med en tydelig feil.
+Da må eksisterende data avklares før førstegangsimport; løsningen tømmer ikke databasen.
+Markeringen lagres separat i hver database, slik at import i dev ikke hindrer import i test.
+Importflagget avvises utenfor `Development` og `Test`, og prod-imager inneholder ikke dumpet.
 
 `ftbid` bevarer opplysningene fra `Ftbids`, inkludert EAN, prosjektinformasjon, system og utstedelsestidspunkt. `identifikasjonsmetadata` bevarer relasjonen fra `FormWorkflowLogs`: arkivreferanse og ftbid. `eiendom` inneholder identifikasjon, bygningsnummer, bolignummer og kommunenavn per eiendom; `eiendomsadresse` inneholder de strukturerte adressene. En ftbid kan ha null eiendommer. `skjemametadata` og `kommune` inneholder nødvendige referansedata.
 

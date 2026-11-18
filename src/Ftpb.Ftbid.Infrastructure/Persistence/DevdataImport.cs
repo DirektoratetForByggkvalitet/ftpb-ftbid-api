@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Ftpb.Ftbid.Infrastructure.Persistence;
 
-/// <summary>Engangsinnlasting av lokalt datadump i en tom dev-database.</summary>
+/// <summary>Engangsinnlasting av lokalt datadump i en tom dev- eller test-database.</summary>
 public static class DevdataImport
 {
     // Fast nøkkel: et nytt snapshot skal heller ikke importeres over eksisterende data.
@@ -41,7 +41,7 @@ public static class DevdataImport
                 IF EXISTS (SELECT 1 FROM public.ftbid) OR EXISTS (SELECT 1 FROM public.eiendom)
                   OR EXISTS (SELECT 1 FROM public.eiendomsadresse) OR EXISTS (SELECT 1 FROM public.identifikasjonsmetadata)
                   OR EXISTS (SELECT 1 FROM public.kommune) OR EXISTS (SELECT 1 FROM public.skjemametadata)
-                THEN RAISE EXCEPTION 'Dev-import krever tomme datatabeller. Ingen eksisterende data er endret.';
+                THEN RAISE EXCEPTION 'Dataimport krever tomme datatabeller. Ingen eksisterende data er endret.';
                 END IF;
             END $$;
             """);

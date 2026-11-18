@@ -68,7 +68,9 @@ jobs:
       - name: Build ftbid api
         run: |
           INCLUDE_DEV_DATA=false
-          if [ "${{ needs.setup.outputs.environment }}" = "dev" ]; then INCLUDE_DEV_DATA=true; fi
+          case "${{ needs.setup.outputs.environment }}" in
+            dev|test) INCLUDE_DEV_DATA=true ;;
+          esac
           docker build --build-arg INCLUDE_DEV_DATA=$INCLUDE_DEV_DATA -f Dockerfile -t $IMAGE .
 
       - name: Push ftbid api

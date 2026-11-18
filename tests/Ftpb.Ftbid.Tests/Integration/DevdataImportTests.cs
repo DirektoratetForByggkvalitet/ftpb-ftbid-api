@@ -1,4 +1,18 @@
 using System.IO.Compression;
+using System.Net;
+using System.Net.Http.Headers;
+using Ftpb.Ftbid.Application.Matrikkel;
+using Ftpb.Ftbid.Domain.Prosjekter;
+using Ftpb.Ftbid.Api.Authentication;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.IdentityModel.Protocols;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Ftpb.Ftbid.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -26,6 +40,69 @@ public sealed class DevdataImportTests : IAsyncLifetime
         options.Database = _navn;
         _database = new FtbidDbContext(new DbContextOptionsBuilder<FtbidDbContext>().UseNpgsql(options.ConnectionString).Options);
         await _database.Database.MigrateAsync();
+    }
+
+    [Fact]
+    public async Task TestOppstartImportererSnapshotOgBeholderFullTokenvalidering()
+    {
+        var oppslagStartet = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Test");
+            builder.UseSetting("ConnectionStrings:Postgres", _database.Database.GetConnectionString());
+            builder.UseSetting("ElasticApm:Enabled", "false");
+            builder.UseSetting("Serilog:Enabled", "false");
+            builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:Postgres"] = _database.Database.GetConnectionString(),
+                ["Database:BrukEntraId"] = "false",
+                ["Database:ImporterDevdata"] = "true",
+                ["Adresseberikelse:Aktivert"] = "true",
+                ["Matrikkel:Brukernavn"] = "test",
+                ["Matrikkel:Passord"] = "test",
+                ["ElasticApm:Enabled"] = "false",
+                ["Serilog:Enabled"] = "false"
+            }));
+            builder.ConfigureServices(services => services.PostConfigure<JwtBearerOptions>(MaskinportenAuthentication.Scheme,
+                options => options.ConfigurationManager = new StaticConfigurationManager<OpenIdConnectConfiguration>(
+                    new OpenIdConnectConfiguration { Issuer = "https://test.maskinporten.no/" })));
+            builder.ConfigureServices(services =>
+            {
+                // Serviceregistreringen leser forbindelsen før ConfigureAppConfiguration
+                // i minimal hosting. Overstyr også DbContext for å isolere denne verten.
+                services.RemoveAll<DbContextOptions<FtbidDbContext>>();
+                services.AddDbContext<FtbidDbContext>(options => options.UseNpgsql(_database.Database.GetConnectionString()));
+                services.RemoveAll<IMatrikkelAdresseoppslag>();
+                services.AddScoped<IMatrikkelAdresseoppslag>(provider =>
+                    new TestAdresseoppslag(provider.GetRequiredService<FtbidDbContext>(), oppslagStartet));
+            });
+        });
+        using var client = factory.CreateClient();
+        Assert.Equal(13131, await _database.Ftbider.CountAsync());
+        Assert.Equal(30944, await _database.Identifikasjonsmetadata.CountAsync());
+        Assert.Equal(13131, await oppslagStartet.Task.WaitAsync(TimeSpan.FromSeconds(10)));
+        using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
+        {
+            while (!await _database.Set<Eiendomsadresse>().AnyAsync(a => a.Adresselinje1 == "Adresse fra testoppslag", timeout.Token))
+                await Task.Delay(50, timeout.Token);
+        }
+        var scheme = await factory.Services.GetRequiredService<IAuthenticationSchemeProvider>()
+            .GetSchemeAsync(MaskinportenAuthentication.Scheme);
+        Assert.Equal(typeof(JwtBearerHandler), scheme!.HandlerType);
+        using var utenToken = await client.GetAsync("/api/ftbid/707338700000000014");
+        Assert.Equal(HttpStatusCode.Unauthorized, utenToken.StatusCode);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "lokalt-token");
+        using var ugyldigToken = await client.GetAsync("/api/ftbid/707338700000000014");
+        Assert.Equal(HttpStatusCode.Unauthorized, ugyldigToken.StatusCode);
+    }
+
+    private sealed class TestAdresseoppslag(FtbidDbContext database, TaskCompletionSource<int> startet) : IMatrikkelAdresseoppslag
+    {
+        public async Task<IReadOnlyList<Eiendomsadresse>> GetAsync(Eiendomsidentifikasjon identifikasjon, CancellationToken cancellationToken)
+        {
+            startet.TrySetResult(await database.Ftbider.CountAsync(cancellationToken));
+            return [new Eiendomsadresse { Adresselinje1 = "Adresse fra testoppslag" }];
+        }
     }
 
     [Fact]

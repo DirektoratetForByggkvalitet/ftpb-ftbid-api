@@ -69,15 +69,16 @@ jobs:
         run: |
           az extension add --name containerapp --upgrade --only-show-errors
           IMAGE=$REGISTRY.azurecr.io/ftpb-ftbid-api:$VERSION
-          DEV_SETTINGS=()
-          if [ "$ENVIRONMENT" = "dev" ]; then
-            DEV_SETTINGS=(--set-env-vars ASPNETCORE_ENVIRONMENT=Development Database__ImporterDevdata=true Ftbid__Gs1Prefiks=7073387)
-          fi
+          ENV_SETTINGS=()
+          case "$ENVIRONMENT" in
+            dev) ENV_SETTINGS=(--set-env-vars ASPNETCORE_ENVIRONMENT=Development Database__ImporterDevdata=true Ftbid__Gs1Prefiks=7073387) ;;
+            test) ENV_SETTINGS=(--set-env-vars ASPNETCORE_ENVIRONMENT=Test Database__ImporterDevdata=true Ftbid__Gs1Prefiks=7073387 Maskinporten__Aktivert=true) ;;
+          esac
           az containerapp update \
             --name $CONTAINER_APP \
             --resource-group $RESOURCE_GROUP \
             --image $IMAGE \
-            "${DEV_SETTINGS[@]}" \
+            "${ENV_SETTINGS[@]}" \
             --output none
           echo "Deployed \`$IMAGE\` to \`$CONTAINER_APP\`" >> $GITHUB_STEP_SUMMARY
 

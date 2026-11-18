@@ -90,8 +90,8 @@ var app = builder.Build();
 if (serilogEnabled)
     app.UseSerilogRequestLogging();
 var importDevdata = builder.Configuration.GetValue<bool>("Database:ImporterDevdata");
-if (importDevdata && !builder.Environment.IsDevelopment())
-    throw new InvalidOperationException("Database:ImporterDevdata er bare tillatt i Development.");
+if (importDevdata && !builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Test"))
+    throw new InvalidOperationException("Database:ImporterDevdata er bare tillatt i Development og Test.");
 if (args.Contains("--migrer", StringComparer.Ordinal) || args.Contains("--importer", StringComparer.Ordinal))
 {
     using var scope = app.Services.CreateScope();

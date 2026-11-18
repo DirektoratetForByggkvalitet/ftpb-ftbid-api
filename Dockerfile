@@ -11,7 +11,7 @@ RUN dotnet restore src/Ftpb.Ftbid.Api/Ftpb.Ftbid.Api.csproj
 COPY src/ src/
 RUN dotnet publish src/Ftpb.Ftbid.Api/Ftpb.Ftbid.Api.csproj --no-restore -c Release -o /utdata
 
-# Bare dev-bygg tar med snapshotet i det ferdige imaget.
+# Bare dev- og test-bygg tar med snapshotet i det ferdige imaget.
 ARG INCLUDE_DEV_DATA=false
 COPY data/dev-seed/lokal.sql.gz /tmp/lokal.sql.gz
 RUN mkdir /devdata && if [ "$INCLUDE_DEV_DATA" = "true" ]; then cp /tmp/lokal.sql.gz /devdata/; fi

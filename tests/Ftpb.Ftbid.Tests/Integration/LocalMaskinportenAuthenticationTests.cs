@@ -47,6 +47,9 @@ public sealed class LocalMaskinportenAuthenticationTests(PostgresApiFixture fixt
     [InlineData("Development", "feil_utsteder", HttpStatusCode.OK)]
     [InlineData("Development", "uten_konsument", HttpStatusCode.OK)]
     [InlineData("Test", "feil_utsteder", HttpStatusCode.Unauthorized)]
+    [InlineData("Test", "feil_signatur", HttpStatusCode.Unauthorized)]
+    [InlineData("Test", "utlopt", HttpStatusCode.Unauthorized)]
+    [InlineData("Test", "uten_konsument", HttpStatusCode.Unauthorized)]
     [InlineData("Production", "utlopt", HttpStatusCode.Unauthorized)]
     public async Task ForenklingGjelderBareLocalOgDevelopment(string environment, string variant, HttpStatusCode expected)
     {
