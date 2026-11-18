@@ -1,8 +1,8 @@
 using Ftpb.Ftbid.Application.Services;
 using Ftpb.Ftbid.Domain.Referansedata;
-using Ftpb.Ftbid.Infrastructure.Persistens;
+using Ftpb.Ftbid.Infrastructure.Persistence;
 using System.Text.Json;
-using Ftpb.Ftbid.Domain.Feil.Unntak;
+using Ftpb.Ftbid.Domain.Errors.Exceptions;
 using Microsoft.EntityFrameworkCore;
 
 namespace Ftpb.Ftbid.Infrastructure.Referansedata;
@@ -11,24 +11,24 @@ namespace Ftpb.Ftbid.Infrastructure.Referansedata;
 public sealed class ReferansedataImportService(FtbidDbContext database) : IReferansedataImportService
 {
     /// <summary>Validerer og oppdaterer kommuner og skjemaer atomisk fra en norsk JSON-fil.</summary>
-    public async Task ImporterAsync(string filsti, CancellationToken avbrudd = default)
+    public async Task ImportAsync(string filePath, CancellationToken cancellationToken = default)
     {
         Referansedata data;
         try
         {
-            await using var fil = File.OpenRead(filsti);
-            if (fil.Length == 0) throw new ImportfilManglerEllerTomException();
+            await using var fil = File.OpenRead(filePath);
+            if (fil.Length == 0) throw new ImportFileMissingOrEmptyException();
             data = await JsonSerializer.DeserializeAsync<Referansedata>(fil,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }, avbrudd)
-                ?? throw new ImportfilManglerEllerTomException();
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }, cancellationToken)
+                ?? throw new ImportFileMissingOrEmptyException();
         }
-        catch (Exception feil) when (feil is FileNotFoundException or DirectoryNotFoundException)
+        catch (Exception error) when (error is FileNotFoundException or DirectoryNotFoundException)
         {
-            throw new ImportfilManglerEllerTomException(feil);
+            throw new ImportFileMissingOrEmptyException(error);
         }
-        catch (JsonException feil)
+        catch (JsonException error)
         {
-            throw new DeserialiseringFeiletException("referansedata", feil);
+            throw new DeserializationFailedException("referansedata", error);
         }
         if (data.Kommuner is null || data.Skjemaer is null)
             throw new UgyldigeReferansedataException();
@@ -45,20 +45,20 @@ public sealed class ReferansedataImportService(FtbidDbContext database) : IRefer
                 skjema.Skjematype?.Length > 500 || skjema.Tiltakstyper is null || skjema.Tiltakstyper.Any(string.IsNullOrWhiteSpace))
                 throw new UgyldigeSkjemametadataException();
         }
-        await using var transaksjon = await database.Database.BeginTransactionAsync(avbrudd);
+        await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
         foreach (var kommune in data.Kommuner)
         {
-            var eksisterende = await database.Kommuner.FindAsync([kommune.Kommunenummer], avbrudd);
+            var eksisterende = await database.Kommuner.FindAsync([kommune.Kommunenummer], cancellationToken);
             if (eksisterende is null) database.Kommuner.Add(kommune);
             else database.Entry(eksisterende).CurrentValues.SetValues(kommune);
         }
         foreach (var skjema in data.Skjemaer)
         {
-            var eksisterende = await database.Skjemametadata.FindAsync([skjema.Arkivreferanse], avbrudd);
+            var eksisterende = await database.Skjemametadata.FindAsync([skjema.Arkivreferanse], cancellationToken);
             if (eksisterende is null) database.Skjemametadata.Add(skjema);
             else database.Entry(eksisterende).CurrentValues.SetValues(skjema);
         }
-        await database.SaveChangesAsync(avbrudd);
-        await transaksjon.CommitAsync(avbrudd);
+        await database.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 }

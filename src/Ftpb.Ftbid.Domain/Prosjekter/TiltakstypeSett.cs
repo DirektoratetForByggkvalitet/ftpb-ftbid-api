@@ -7,12 +7,12 @@ namespace Ftpb.Ftbid.Domain.Prosjekter;
 /// <summary>Entydig sammenligning av tiltakstyper uavhengig av rekkefølge og duplikater.</summary>
 public static class TiltakstypeSett
 {
-    public static string NormaliserTekst(string? verdi) => string.Join(' ',
-        (verdi ?? "").Normalize(NormalizationForm.FormC).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).ToLowerInvariant();
+    public static string NormalizeText(string? value) => string.Join(' ',
+        (value ?? "").Normalize(NormalizationForm.FormC).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).ToLowerInvariant();
 
-    public static string[] Normaliser(IEnumerable<string> verdier) => verdier.Select(NormaliserTekst)
+    public static string[] Normalize(IEnumerable<string> values) => values.Select(NormalizeText)
         .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
 
-    public static string LagHash(IEnumerable<string> verdier) =>
-        Convert.ToHexStringLower(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(Normaliser(verdier))));
+    public static string ComputeHash(IEnumerable<string> values) =>
+        Convert.ToHexStringLower(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(Normalize(values))));
 }

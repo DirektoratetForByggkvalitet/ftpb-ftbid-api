@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using Ftpb.Ftbid.Infrastructure.Persistens;
-using Ftpb.Ftbid.Application.Lagring;
+using Ftpb.Ftbid.Infrastructure.Persistence;
+using Ftpb.Ftbid.Application.Repositories;
 
 namespace Ftpb.Ftbid.Infrastructure.Referansedata;
 
@@ -8,7 +8,7 @@ namespace Ftpb.Ftbid.Infrastructure.Referansedata;
 public sealed class PostgresKommuneregister(FtbidDbContext database) : IKommuneregister
 {
     /// <inheritdoc />
-    public Task<bool> ErKommuneGyldigAsync(string kommunenummer, DateTimeOffset tidspunkt, CancellationToken avbrudd) =>
+    public Task<bool> ErKommuneGyldigAsync(string kommunenummer, DateTimeOffset tidspunkt, CancellationToken cancellationToken) =>
         database.Kommuner.AnyAsync(k => k.Kommunenummer == kommunenummer &&
-            (k.GyldigFra == null || k.GyldigFra <= tidspunkt) && (k.GyldigTil == null || k.GyldigTil >= tidspunkt), avbrudd);
+            (k.GyldigFra == null || k.GyldigFra <= tidspunkt) && (k.GyldigTil == null || k.GyldigTil >= tidspunkt), cancellationToken);
 }

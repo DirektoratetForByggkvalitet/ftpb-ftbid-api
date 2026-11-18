@@ -1,4 +1,4 @@
-using Ftpb.Ftbid.Application.Kontrakter;
+using Ftpb.Ftbid.Application.Contracts;
 
 namespace Ftpb.Ftbid.Application.Services;
 
@@ -6,5 +6,5 @@ namespace Ftpb.Ftbid.Application.Services;
 public interface IFtbidOpprettingService
 {
     /// <summary>Validerer opprettingsdata og returnerer en ny ftbid, eller avviser en dublett.</summary>
-    Task<string> OpprettAsync(OpprettFtbid foresporsel, CancellationToken avbrudd = default);
+    Task<string> CreateAsync(OpprettFtbid request, CancellationToken cancellationToken = default);
 }

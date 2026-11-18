@@ -63,23 +63,25 @@ Elastic APM bruker `ServiceName` lik `Ftbid.Backend` og automatisk instrumenteri
 
 Avhengighetene går fra Api til Application og Infrastructure, fra Infrastructure til Application og Domain, og fra Application til Domain. Domain har ingen eksterne pakkeavhengigheter. Offentlige metoder har vanlige `///`-kodedokumentasjonskommentarer eller arver dokumentasjonen fra grensesnittet. Separate XML-dokumentasjonsfiler genereres ikke.
 
-### Mapper og servicer
+### Navngivning, mapper og services
+
+Domeneord er norske, for eksempel `Eiendom`, `Tilknytning` og `Matrikkel`. Tekniske navn følger engelske .NET-konvensjoner: `Controllers`, `Services`, `Repositories`, `Validation`, `Configuration`, `Options`, `Factory` og `Tests`. Det gjelder også generiske metode- og variabelnavn. API-felter, ruter, feilmeldinger, konfigurasjonsnøkler og historiske migrasjonsnavn beholdes på norsk. OpenAPI-skjemaenes typenavn følger de nye C#-navnene, for eksempel `FtbidResult` og `TilknyttFtbidRequest`; regenererte klienter vil derfor få disse typenavnene.
 
 Hver modell og kontrakt ligger i en egen fil. Mappene og navnerommene beskriver ansvaret:
 
 | Prosjekt | Mapper |
 | --- | --- |
-| Api | `Kontrollere`, `Autentisering`, `Feilhandtering`, `Helse`, `Konfigurasjon` |
-| Domain | `Prosjekter`, `Referansedata`, `Identifikatorer`, `Feil/Unntak` |
-| Application | `Kontrakter`, `Services`, `Lagring`, `Validering`, `Konfigurasjon`, `Feil` |
-| Infrastructure | `Persistens/Lagre`, `Referansedata`, `Migrasjoner` |
-| Tests | `Enhet`, `Integrasjon`, `Oppsett` |
+| Api | `Controllers`, `Authentication`, `ErrorHandling`, `HealthChecks`, `Configuration` |
+| Domain | `Prosjekter`, `Referansedata`, `Identifikatorer`, `Errors/Exceptions` |
+| Application | `Contracts`, `Services`, `Repositories`, `Validation`, `Configuration`, `Errors` |
+| Infrastructure | `Persistence/Repositories`, `Referansedata`, `Migrations` |
+| Tests | `Unit`, `Integration`, `Fixtures` |
 
-`FtbidOpprettingService` validerer prosjektdata og oppretter en identifikator. `FtbidDublettService` kontrollerer den samlede dublettnøkkelen før lagring, under PostgreSQL-transaksjonslåsen. `FtbidOppslagService` håndterer søk, oppslag og resultatmodeller. `FtbidTilknytningService` håndterer URN-referanser. `FtbidEiendomService` validerer tillegg og sletting av adresser og matrikkelenheter, med atomisk lagring gjennom `IFtbidEiendomslager` og `PostgresFtbidEiendomslager`. Servicene har egne grensesnitt som kontrolleren får gjennom avhengighetsinjeksjon.
+`FtbidOpprettingService` validerer prosjektdata og oppretter en identifikator. `FtbidDublettService` kontrollerer den samlede dublettnøkkelen før lagring, under PostgreSQL-transaksjonslåsen. `FtbidOppslagService` håndterer søk, oppslag og resultatmodeller. `FtbidTilknytningService` håndterer URN-referanser. `FtbidEiendomService` validerer tillegg og sletting av adresser og matrikkelenheter, med atomisk lagring gjennom `IFtbidEiendomRepository` og `PostgresFtbidEiendomRepository`. Servicene har egne grensesnitt som kontrolleren får gjennom avhengighetsinjeksjon.
 
-`IFtbidLager` samler PostgreSQL-operasjonene for prosjektet og dets tilknytninger. Opprettingens transaksjon, sekvenstildeling og duplikatbeskyttelse ligger samlet i `PostgresFtbidLager`. Kommuneoppslag har en egen kontrakt, `IKommuneregister`, og implementeres av `PostgresKommuneregister`. `IReferansedataImportService` brukes av importkommandoen og implementeres i Infrastructure, med atomisk oppdatering av kommuner og skjemaer.
+`IFtbidRepository` samler PostgreSQL-operasjonene for prosjektet og dets tilknytninger. Opprettingens transaksjon, sekvenstildeling og duplikatbeskyttelse ligger samlet i `PostgresFtbidRepository`. Kommuneoppslag har en egen kontrakt, `IKommuneregister`, og implementeres av `PostgresKommuneregister`. `IReferansedataImportService` brukes av importkommandoen og implementeres i Infrastructure, med atomisk oppdatering av kommuner og skjemaer.
 
-Felles tekstvalidering og normalisering er interne hjelpefunksjoner i Application. De trenger ingen egen injisert service. Serviceregistreringen er samlet i `Api/Konfigurasjon/Serviceregistrering.cs`. API-kontrakten og databaseskjemaet er uendret av denne oppdelingen.
+Felles tekstvalidering og normalisering er interne hjelpefunksjoner i Application. De trenger ingen egen injisert service. Serviceregistreringen er samlet i `Api/Configuration/ServiceRegistration.cs`. API-kontrakten og databaseskjemaet er uendret av denne oppdelingen.
 
 ## Endepunkter
 
@@ -259,25 +261,25 @@ Dubletter gir 409 med eksisterende ftbid i ProblemDetails, uten Location-header.
 
 ## Regelkoder og ProblemDetails
 
-Feilstrukturen følger mønsteret i `NIREG.Domain.Errors`, med norske navn under `Domain/Feil`:
+Feilstrukturen følger mønsteret i `NIREG.Domain.Errors`, med norske navn under `Domain/Errors`:
 
 - `Feilkode` er enumen med stabile regelkoder.
 - `FeilType` inneholder `Feil = 0` og `Advarsel = 1`, som i NIREG.
 - `FtbidException` er abstrakt og inneholder `Kode`, `FeilType`, melding og eventuell opprinnelig årsak.
-- `ValideringsException` er abstrakt og samler forventede inndata- og forretningsfeil.
-- `Unntak/` inneholder én konkret klasse per forventet feil, med relevant kontekst som kommunenummer eller ftbid.
+- `ValidationException` er abstrakt og samler forventede inndata- og forretningsfeil.
+- `Exceptions/` inneholder én konkret klasse per forventet feil, med relevant kontekst som kommunenummer eller ftbid.
 
 Regler med samme betydning gjenbruker NIREGs kode. Ftbids egne regler har koder fra `V0047`; eksisterende NIREG-koder gis ikke en ny betydning.
 
 | Kode | Unntak |
 | --- | --- |
-| V003 | ImportfilManglerEllerTomException |
+| V003 | ImportFileMissingOrEmptyException |
 | V0026 | GyldigFraEtterGyldigTilException |
 | V0034 | UgyldigKommunenummerException |
-| V0038 | DeserialiseringFeiletException |
-| V0042 | PåkrevdVerdiManglerException |
-| V0047 | TekstForLangException |
-| V0048 | ForMangeVerdierException |
+| V0038 | DeserializationFailedException |
+| V0042 | RequiredValueMissingException |
+| V0047 | TextTooLongException |
+| V0048 | TooManyValuesException |
 | V0049 | UgyldigeMatrikkelopplysningerException |
 | V0050 | SøkeparameterManglerException |
 | V0051 | UgyldigSøkenummerException |
@@ -289,8 +291,8 @@ Regler med samme betydning gjenbruker NIREGs kode. Ftbids egne regler har koder 
 | V0056 | UgyldigeSkjemametadataException |
 | V0057 | UgyldigGs1PrefiksException |
 | V0058 | SekvensnummerUtenforOmrådetException |
-| V0059 | KonfigurasjonManglerException |
-| V0060 | UgyldigMaskinportenkonfigurasjonException |
+| V0059 | MissingConfigurationException |
+| V0060 | InvalidMaskinportenConfigurationException |
 | V0062 | ProsjektidentitetAlleredeIBrukException |
 | V0067 | FtbidDublettException (dublett) |
 | V0068 | Utgått (tidligere sannsynlig dublett) |
@@ -388,7 +390,7 @@ Status og adresser lagres atomisk per eiendom. Et vellykket oppslag med null adr
 
 Sett `Adresseberikelse:Aktivert=false` for å deaktivere jobben. Ved endring i appsettings med konfigurasjonsreload oppdages flagget løpende; et pågående SOAP-oppslag får avslutte, og flagget sjekkes igjen før lagring. Endringer i miljøvariabler krever omstart. Deaktivering sletter ikke adresser eller fremdrift. Logger viser eiendoms-ID, antall treff og nye adresser, samt feil som må følges opp.
 
-SOAP-proxyen i `Infrastructure/Matrikkel/Generert/Matrikkel.g.cs` er gjenbrukt fra Niregs genererte `Integrations/Matrikkel.cs` (lokal referanse ved commit `fcc28b2`). XML-kontraktene er beholdt; C#-navnerommet er flyttet inn under ftbid og nullable-analyse er slått av i den genererte filen. Integrasjonen bruker WCF-klientbiblioteket `System.ServiceModel.Http`. Se [Kartverkets MatrikkelAPI-dokumentasjon](https://kartverket.github.io/api-dokumentasjon/docs/eiendom/matrikkel/matrikkelen/matrikkelapi/).
+SOAP-proxyen i `Infrastructure/Matrikkel/Generated/Matrikkel.g.cs` er gjenbrukt fra Niregs genererte `Integrations/Matrikkel.cs` (lokal referanse ved commit `fcc28b2`). XML-kontraktene er beholdt; C#-navnerommet er flyttet inn under ftbid og nullable-analyse er slått av i den genererte filen. Integrasjonen bruker WCF-klientbiblioteket `System.ServiceModel.Http`. Se [Kartverkets MatrikkelAPI-dokumentasjon](https://kartverket.github.io/api-dokumentasjon/docs/eiendom/matrikkel/matrikkelen/matrikkelapi/).
 
 ## Referansedata
 
@@ -519,7 +521,7 @@ Opprett nye migrasjoner med det lokale EF-verktøyet:
 
 ```sh
 dotnet tool restore
-dotnet ef migrations add <NorskMigrasjonsnavn> --project src/Ftpb.Ftbid.Infrastructure --startup-project src/Ftpb.Ftbid.Api --output-dir Migrasjoner
+dotnet ef migrations add <MigrationName> --project src/Ftpb.Ftbid.Infrastructure --startup-project src/Ftpb.Ftbid.Api --output-dir Migrations
 ```
 
 Se [Npgsqls dokumentasjon for EF Core 10](https://www.npgsql.org/efcore/release-notes/10.0.html) og [ASP.NET Cores dokumentasjon for ratebegrensning](https://learn.microsoft.com/en-us/aspnet/core/performance/rate-limit?view=aspnetcore-10.0).
@@ -529,7 +531,7 @@ Se [Npgsqls dokumentasjon for EF Core 10](https://www.npgsql.org/efcore/release-
 Kjør bare enhetstester, uten Docker eller database:
 
 ```sh
-dotnet test ftpb-ftbid-api.sln --filter 'FullyQualifiedName~Ftpb.Ftbid.Tests.Enhet'
+dotnet test ftpb-ftbid-api.sln --filter 'FullyQualifiedName~Ftpb.Ftbid.Tests.Unit'
 ```
 
 Hele testsuiten inkluderer HTTP-integrasjonstester med PostgreSQL:

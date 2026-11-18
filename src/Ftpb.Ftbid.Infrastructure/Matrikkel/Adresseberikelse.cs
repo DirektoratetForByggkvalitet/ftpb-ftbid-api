@@ -1,6 +1,6 @@
 using Ftpb.Ftbid.Application.Matrikkel;
 using Ftpb.Ftbid.Domain.Prosjekter;
-using Ftpb.Ftbid.Infrastructure.Persistens;
+using Ftpb.Ftbid.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -10,62 +10,62 @@ namespace Ftpb.Ftbid.Infrastructure.Matrikkel;
 public sealed class Adresseberikelse(FtbidDbContext database, IMatrikkelAdresseoppslag matrikkel, ILogger<Adresseberikelse> logger)
 {
     /// <summary>Behandler én side. Returnerer siste ID, eller null når gjennomgangen er ferdig.</summary>
-    public async Task<long?> BehandleBatchAsync(long etterId, int batchstorrelse, int pauseMs,
-        Func<bool> fortsett, CancellationToken avbrudd)
+    public async Task<long?> ProcessBatchAsync(long afterId, int batchSize, int pauseMs,
+        Func<bool> shouldContinue, CancellationToken cancellationToken)
     {
         var eiendommer = await database.Set<Eiendom>().AsNoTracking()
-            .Where(e => e.Id > etterId && e.MatrikkelAdresserHentet == null)
-            .OrderBy(e => e.Id).Take(batchstorrelse).ToArrayAsync(avbrudd);
+            .Where(e => e.Id > afterId && e.MatrikkelAdresserHentet == null)
+            .OrderBy(e => e.Id).Take(batchSize).ToArrayAsync(cancellationToken);
         var oppslag = new Dictionary<Eiendomsidentifikasjon, IReadOnlyList<Eiendomsadresse>>();
-        long? sisteId = null;
+        long? lastId = null;
         foreach (var eiendom in eiendommer)
         {
-            avbrudd.ThrowIfCancellationRequested();
-            if (!fortsett()) break;
-            sisteId = eiendom.Id;
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!shouldContinue()) break;
+            lastId = eiendom.Id;
             try
             {
                 var ident = eiendom.Eiendomsidentifikasjon;
                 if (!oppslag.TryGetValue(ident, out var adresser))
                 {
-                    try { adresser = await matrikkel.HentAsync(ident, avbrudd); }
-                    finally { await Task.Delay(pauseMs, avbrudd); }
+                    try { adresser = await matrikkel.GetAsync(ident, cancellationToken); }
+                    finally { await Task.Delay(pauseMs, cancellationToken); }
                     oppslag.Add(ident, adresser);
                 }
                 // Ikke skriv dersom jobben ble deaktivert mens SOAP-oppslaget pågikk.
-                if (!fortsett()) break;
-                await using var transaksjon = await database.Database.BeginTransactionAsync(avbrudd);
-                await database.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(7099999)", avbrudd);
-                if (!fortsett()) break;
+                if (!shouldContinue()) break;
+                await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+                await database.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(7099999)", cancellationToken);
+                if (!shouldContinue()) break;
                 var gjeldende = await database.Set<Eiendom>().Include(e => e.Adresse)
-                    .SingleOrDefaultAsync(e => e.Id == eiendom.Id, avbrudd);
+                    .SingleOrDefaultAsync(e => e.Id == eiendom.Id, cancellationToken);
                 if (gjeldende is null || gjeldende.MatrikkelAdresserHentet is not null || gjeldende.Eiendomsidentifikasjon != ident)
                     continue;
-                var antall = LeggTilManglende(gjeldende, adresser);
+                var count = LeggTilManglende(gjeldende, adresser);
                 gjeldende.MatrikkelAdresserHentet = DateTimeOffset.UtcNow;
-                await database.SaveChangesAsync(avbrudd);
-                await transaksjon.CommitAsync(avbrudd);
+                await database.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
                 logger.LogInformation("Adresseberikelse: eiendom {EiendomId}, {Treff} adresser fra Matrikkel, {Nye} lagt til",
-                    eiendom.Id, adresser.Count, antall);
+                    eiendom.Id, adresser.Count, count);
             }
-            catch (OperationCanceledException) when (avbrudd.IsCancellationRequested) { throw; }
-            catch (Exception feil)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+            catch (Exception error)
             {
-                logger.LogWarning(feil, "Adresseberikelse feilet for eiendom {EiendomId}; forsøkes igjen i neste gjennomgang", eiendom.Id);
+                logger.LogWarning(error, "Adresseberikelse feilet for eiendom {EiendomId}; forsøkes igjen i neste gjennomgang", eiendom.Id);
             }
             finally { database.ChangeTracker.Clear(); }
         }
-        return sisteId;
+        return lastId;
     }
 
     internal static int LeggTilManglende(Eiendom eiendom, IReadOnlyList<Eiendomsadresse> adresser)
     {
-        var nokler = eiendom.Adresse.Select(Nokkel).ToHashSet();
+        var keys = eiendom.Adresse.Select(Nokkel).ToHashSet();
         var rekkefolge = eiendom.Adresse.Select(a => a.Rekkefolge).DefaultIfEmpty(-1).Max() + 1;
-        var antall = 0;
+        var count = 0;
         foreach (var adresse in adresser)
         {
-            if (!nokler.Add(Nokkel(adresse))) continue;
+            if (!keys.Add(Nokkel(adresse))) continue;
             // Kopier fordi samme oppslag kan brukes av flere eiendomsrader.
             eiendom.Adresse.Add(new Eiendomsadresse
             {
@@ -74,17 +74,17 @@ public sealed class Adresseberikelse(FtbidDbContext database, IMatrikkelAdresseo
                 Adresselinje3 = adresse.Adresselinje3, Postnr = adresse.Postnr, Poststed = adresse.Poststed,
                 Landkode = adresse.Landkode, Gatenavn = adresse.Gatenavn, Husnr = adresse.Husnr, Bokstav = adresse.Bokstav
             });
-            antall++;
+            count++;
         }
-        return antall;
+        return count;
     }
 
-    private static string? Normaliser(string? verdi) => string.IsNullOrWhiteSpace(verdi) ? null : verdi.Trim().ToUpperInvariant();
+    private static string? Normalize(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToUpperInvariant();
 
     private static object Nokkel(Eiendomsadresse a) => new
     {
-        Linje1 = Normaliser(a.Adresselinje1), Linje2 = Normaliser(a.Adresselinje2), Linje3 = Normaliser(a.Adresselinje3),
-        Postnr = Normaliser(a.Postnr), Poststed = Normaliser(a.Poststed), Land = Normaliser(a.Landkode),
-        Gate = Normaliser(a.Gatenavn), Hus = Normaliser(a.Husnr), Bokstav = Normaliser(a.Bokstav)
+        Linje1 = Normalize(a.Adresselinje1), Linje2 = Normalize(a.Adresselinje2), Linje3 = Normalize(a.Adresselinje3),
+        Postnr = Normalize(a.Postnr), Poststed = Normalize(a.Poststed), Land = Normalize(a.Landkode),
+        Gate = Normalize(a.Gatenavn), Hus = Normalize(a.Husnr), Bokstav = Normalize(a.Bokstav)
     };
 }

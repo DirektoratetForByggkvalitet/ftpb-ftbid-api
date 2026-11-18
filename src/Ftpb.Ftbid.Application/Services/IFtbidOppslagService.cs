@@ -1,4 +1,4 @@
-using Ftpb.Ftbid.Application.Kontrakter;
+using Ftpb.Ftbid.Application.Contracts;
 
 namespace Ftpb.Ftbid.Application.Services;
 
@@ -6,9 +6,9 @@ namespace Ftpb.Ftbid.Application.Services;
 public interface IFtbidOppslagService
 {
     /// <summary>Lister alle poster med fast sidestørrelse og stabil sortering.</summary>
-    Task<PaginertResultat<FtbidResultat>> ListeAsync(Paginering paginering, CancellationToken avbrudd = default);
+    Task<PagedResult<FtbidResult>> ListAsync(Pagination pagination, CancellationToken cancellationToken = default);
     /// <summary>Henter metadata med full ftbid eller de siste åtte sifrene.</summary>
-    Task<IReadOnlyList<FtbidResultat>> HentAsync(string ftbid, CancellationToken avbrudd = default);
+    Task<IReadOnlyList<FtbidResult>> GetAsync(string ftbid, CancellationToken cancellationToken = default);
     /// <summary>Søker med minst ett filter og returnerer tilknytninger.</summary>
-    Task<IReadOnlyList<FtbidResultat>> SokAsync(FtbidSok filter, CancellationToken avbrudd = default);
+    Task<IReadOnlyList<FtbidResult>> SearchAsync(FtbidSok filter, CancellationToken cancellationToken = default);
 }

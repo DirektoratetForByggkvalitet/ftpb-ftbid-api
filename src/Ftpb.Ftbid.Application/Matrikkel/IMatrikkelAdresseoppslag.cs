@@ -6,5 +6,5 @@ namespace Ftpb.Ftbid.Application.Matrikkel;
 public interface IMatrikkelAdresseoppslag
 {
     /// <summary>Returnerer alle adresser; tekniske feil skal kastes slik at oppslaget kan forsøkes igjen.</summary>
-    Task<IReadOnlyList<Eiendomsadresse>> HentAsync(Eiendomsidentifikasjon identifikasjon, CancellationToken avbrudd);
+    Task<IReadOnlyList<Eiendomsadresse>> GetAsync(Eiendomsidentifikasjon identifikasjon, CancellationToken cancellationToken);
 }

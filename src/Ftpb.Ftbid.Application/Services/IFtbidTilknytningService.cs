@@ -1,4 +1,4 @@
-using Ftpb.Ftbid.Application.Kontrakter;
+using Ftpb.Ftbid.Application.Contracts;
 
 namespace Ftpb.Ftbid.Application.Services;
 
@@ -6,5 +6,5 @@ namespace Ftpb.Ftbid.Application.Services;
 public interface IFtbidTilknytningService
 {
     /// <summary>Registrerer metadata og knytter en liste av URN-referanser til en eksisterende ftbid.</summary>
-    Task TilknyttAsync(TilknyttFtbid foresporsel, CancellationToken avbrudd = default);
+    Task TilknyttAsync(TilknyttFtbid request, CancellationToken cancellationToken = default);
 }

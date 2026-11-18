@@ -1,4 +1,4 @@
-using FtbidEntitet = Ftpb.Ftbid.Domain.Prosjekter.Ftbid;
+using FtbidEntity = Ftpb.Ftbid.Domain.Prosjekter.Ftbid;
 
 namespace Ftpb.Ftbid.Application.Services;
 
@@ -6,7 +6,7 @@ namespace Ftpb.Ftbid.Application.Services;
 public interface IFtbidDublettService
 {
     /// <summary>Returnerer første dublett sortert på ftbid, eller null hvis kombinasjonen ikke finnes.</summary>
-    FtbidDublettTreff? Finn(FtbidEntitet prosjekt, IEnumerable<FtbidEntitet> kandidater);
+    FtbidDublettTreff? Finn(FtbidEntity prosjekt, IEnumerable<FtbidEntity> kandidater);
 }
 
 /// <summary>Dublettreff med eksisterende ftbid og feltene som identifiserer dubletten.</summary>

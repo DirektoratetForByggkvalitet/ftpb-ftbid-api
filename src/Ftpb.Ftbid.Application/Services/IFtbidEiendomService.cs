@@ -1,4 +1,4 @@
-using Ftpb.Ftbid.Application.Kontrakter;
+using Ftpb.Ftbid.Application.Contracts;
 
 namespace Ftpb.Ftbid.Application.Services;
 
@@ -6,11 +6,11 @@ namespace Ftpb.Ftbid.Application.Services;
 public interface IFtbidEiendomService
 {
     /// <summary>Lister alle poster med fast sidestørrelse og stabil sortering.</summary>
-    Task<PaginertResultat<EiendomListeResultat>> ListeAsync(Paginering paginering, CancellationToken avbrudd = default);
+    Task<PagedResult<EiendomListResult>> ListAsync(Pagination pagination, CancellationToken cancellationToken = default);
     /// <summary>Legger til en eiendom.</summary>
-    Task LeggTilAsync(string ftbid, Eiendomsdata eiendom, CancellationToken avbrudd = default);
+    Task AddAsync(string ftbid, Eiendomsdata eiendom, CancellationToken cancellationToken = default);
     /// <summary>Erstatter eiendommen med angitt ID.</summary>
-    Task ErstattAsync(string ftbid, long eiendomId, Eiendomsdata eiendom, CancellationToken avbrudd = default);
+    Task ReplaceAsync(string ftbid, long eiendomId, Eiendomsdata eiendom, CancellationToken cancellationToken = default);
     /// <summary>Fjerner eiendommen hvis den finnes, også når den er den siste.</summary>
-    Task FjernAsync(string ftbid, long eiendomId, CancellationToken avbrudd = default);
+    Task RemoveAsync(string ftbid, long eiendomId, CancellationToken cancellationToken = default);
 }

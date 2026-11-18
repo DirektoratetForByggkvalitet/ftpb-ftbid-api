@@ -1,32 +1,32 @@
-using Ftpb.Ftbid.Application.Konfigurasjon;
-using Ftpb.Ftbid.Application.Kontrakter;
-using Ftpb.Ftbid.Application.Lagring;
+using Ftpb.Ftbid.Application.Configuration;
+using Ftpb.Ftbid.Application.Contracts;
+using Ftpb.Ftbid.Application.Repositories;
 using Ftpb.Ftbid.Domain.Prosjekter;
 using Ftpb.Ftbid.Domain.Referansedata;
-using static Ftpb.Ftbid.Application.Validering.FtbidValidering;
-using Ftpb.Ftbid.Domain.Feil.Unntak;
-using FtbidEntitet = Ftpb.Ftbid.Domain.Prosjekter.Ftbid;
+using static Ftpb.Ftbid.Application.Validation.FtbidValidation;
+using Ftpb.Ftbid.Domain.Errors.Exceptions;
+using FtbidEntity = Ftpb.Ftbid.Domain.Prosjekter.Ftbid;
 
 namespace Ftpb.Ftbid.Application.Services;
 
 /// <summary>Henter og søker i prosjekter og setter sammen resultatmodeller.</summary>
-public sealed class FtbidOppslagService(IFtbidLager lager, FtbidInnstillinger innstillinger) : IFtbidOppslagService
+public sealed class FtbidOppslagService(IFtbidRepository repository, FtbidOptions settings) : IFtbidOppslagService
 {
     /// <inheritdoc />
-    public async Task<PaginertResultat<FtbidResultat>> ListeAsync(Paginering paginering, CancellationToken avbrudd = default)
+    public async Task<PagedResult<FtbidResult>> ListAsync(Pagination pagination, CancellationToken cancellationToken = default)
     {
-        var side = await lager.ListeAsync(paginering, avbrudd);
-        return new(side.Resultater.Select(TilResultat).ToList(), side.Side, side.HarNesteSide);
+        var side = await repository.ListAsync(pagination, cancellationToken);
+        return new(side.Resultater.Select(ToResult).ToList(), side.Side, side.HarNesteSide);
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<FtbidResultat>> HentAsync(string ftbid, CancellationToken avbrudd = default) =>
-        (await lager.HentAsync(NormaliserFtbid(ftbid, innstillinger), avbrudd)).Select(TilResultat).ToList();
+    public async Task<IReadOnlyList<FtbidResult>> GetAsync(string ftbid, CancellationToken cancellationToken = default) =>
+        (await repository.GetAsync(NormalizeFtbid(ftbid, settings), cancellationToken)).Select(ToResult).ToList();
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<FtbidResultat>> SokAsync(FtbidSok filter, CancellationToken avbrudd = default)
+    public async Task<IReadOnlyList<FtbidResult>> SearchAsync(FtbidSok filter, CancellationToken cancellationToken = default)
     {
-        if (!filter.HarFiltre())
+        if (!filter.HasFilters())
             throw new SøkeparameterManglerException();
         if (filter.Gaardsnummer < 0 || filter.Bruksnummer < 0 || filter.Festenummer < 0 || filter.Seksjonsnummer < 0)
             throw new UgyldigSøkenummerException();
@@ -34,14 +34,14 @@ public sealed class FtbidOppslagService(IFtbidLager lager, FtbidInnstillinger in
         if (kommune is not null && (kommune.Length != 4 || !kommune.All(char.IsAsciiDigit)))
             throw new UgyldigKommunenummerException(kommune);
         filter = filter with { Kommunenummer = kommune,
-            Ftbid = string.IsNullOrWhiteSpace(filter.Ftbid) ? null : NormaliserFtbid(filter.Ftbid, innstillinger),
-            AnsvarligSokerOrganisasjonsnummer = NormaliserAnsvarligSoker(filter.AnsvarligSokerOrganisasjonsnummer) };
-        var resultater = await lager.SokAsync(filter, avbrudd);
-        if (resultater.Count == 0) throw new SøkeresultatIkkeFunnetException();
-        return resultater.Select(TilResultat).ToList();
+            Ftbid = string.IsNullOrWhiteSpace(filter.Ftbid) ? null : NormalizeFtbid(filter.Ftbid, settings),
+            AnsvarligSokerOrganisasjonsnummer = NormalizeAnsvarligSoker(filter.AnsvarligSokerOrganisasjonsnummer) };
+        var results = await repository.SearchAsync(filter, cancellationToken);
+        if (results.Count == 0) throw new SøkeresultatIkkeFunnetException();
+        return results.Select(ToResult).ToList();
     }
 
-    private static FtbidResultat TilResultat(FtbidEntitet prosjekt)
+    private static FtbidResult ToResult(FtbidEntity prosjekt)
     {
         return new() { Ftbid = prosjekt.Ean, Prosjektnavn = prosjekt.Prosjektnavn,
             Utstedt = prosjekt.Utstedt,
@@ -49,7 +49,7 @@ public sealed class FtbidOppslagService(IFtbidLager lager, FtbidInnstillinger in
             EksternProsjektreferanse = prosjekt.EksternProsjektreferanse, KommunaltSaksnummer = prosjekt.KommunaltSaksnummer,
             Tiltakshaver = prosjekt.Tiltakshaver, Organisasjonsnummer = prosjekt.Organisasjonsnummer,
             Tiltakstyper = prosjekt.Tiltakstyper, AnsvarligSokerOrganisasjonsnummer = prosjekt.AnsvarligSokerOrganisasjonsnummer,
-            Eiendom = prosjekt.Eiendom.OrderBy(e => e.Rekkefolge).Select(EiendomResultat.FraEntitet).ToList(),
+            Eiendom = prosjekt.Eiendom.OrderBy(e => e.Rekkefolge).Select(EiendomResult.FromEntity).ToList(),
             Tilknytninger = prosjekt.Identifikasjonsmetadata.OrderBy(m => m.Arkivreferanse)
                 .Select(m => new Tilknytning(m.Arkivreferanse, m.Skjemametadata.Skjematype, m.Skjemametadata.Tiltakstyper)).ToList() };
     }

@@ -1,44 +1,44 @@
-using Ftpb.Ftbid.Application.Konfigurasjon;
-using Ftpb.Ftbid.Application.Kontrakter;
-using Ftpb.Ftbid.Application.Lagring;
-using Ftpb.Ftbid.Application.Validering;
-using Ftpb.Ftbid.Domain.Feil.Unntak;
-using static Ftpb.Ftbid.Application.Validering.FtbidValidering;
+using Ftpb.Ftbid.Application.Configuration;
+using Ftpb.Ftbid.Application.Contracts;
+using Ftpb.Ftbid.Application.Repositories;
+using Ftpb.Ftbid.Application.Validation;
+using Ftpb.Ftbid.Domain.Errors.Exceptions;
+using static Ftpb.Ftbid.Application.Validation.FtbidValidation;
 
 namespace Ftpb.Ftbid.Application.Services;
 
 /// <summary>Validerer og endrer eiendommer uten eksterne oppslag.</summary>
-public sealed class FtbidEiendomService(IFtbidEiendomslager lager, IKommuneregister kommuneregister,
-    FtbidInnstillinger innstillinger) : IFtbidEiendomService
+public sealed class FtbidEiendomService(IFtbidEiendomRepository repository, IKommuneregister kommuneregister,
+    FtbidOptions settings) : IFtbidEiendomService
 {
     /// <inheritdoc />
-    public async Task<PaginertResultat<EiendomListeResultat>> ListeAsync(Paginering paginering, CancellationToken avbrudd = default)
+    public async Task<PagedResult<EiendomListResult>> ListAsync(Pagination pagination, CancellationToken cancellationToken = default)
     {
-        var side = await lager.ListeAsync(paginering, avbrudd);
-        return new(side.Resultater.Select(e => new EiendomListeResultat(e.Ftbid, EiendomResultat.FraEntitet(e))).ToList(),
+        var side = await repository.ListAsync(pagination, cancellationToken);
+        return new(side.Resultater.Select(e => new EiendomListResult(e.Ftbid, EiendomResult.FromEntity(e))).ToList(),
             side.Side, side.HarNesteSide);
     }
 
     /// <inheritdoc />
-    public async Task LeggTilAsync(string ftbid, Eiendomsdata eiendom, CancellationToken avbrudd = default)
+    public async Task AddAsync(string ftbid, Eiendomsdata eiendom, CancellationToken cancellationToken = default)
     {
-        var id = NormaliserFtbid(ftbid, innstillinger);
-        await lager.LeggTilAsync(id, await EiendomValidering.TilEntitetAsync(eiendom, kommuneregister, avbrudd), avbrudd);
+        var id = NormalizeFtbid(ftbid, settings);
+        await repository.AddAsync(id, await EiendomValidation.ToEntityAsync(eiendom, kommuneregister, cancellationToken), cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task ErstattAsync(string ftbid, long eiendomId, Eiendomsdata eiendom, CancellationToken avbrudd = default)
+    public async Task ReplaceAsync(string ftbid, long eiendomId, Eiendomsdata eiendom, CancellationToken cancellationToken = default)
     {
-        var id = NormaliserFtbid(ftbid, innstillinger);
+        var id = NormalizeFtbid(ftbid, settings);
         if (eiendomId <= 0) throw new UgyldigSøkenummerException();
-        await lager.ErstattAsync(id, eiendomId, await EiendomValidering.TilEntitetAsync(eiendom, kommuneregister, avbrudd), avbrudd);
+        await repository.ReplaceAsync(id, eiendomId, await EiendomValidation.ToEntityAsync(eiendom, kommuneregister, cancellationToken), cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task FjernAsync(string ftbid, long eiendomId, CancellationToken avbrudd = default)
+    public Task RemoveAsync(string ftbid, long eiendomId, CancellationToken cancellationToken = default)
     {
-        var id = NormaliserFtbid(ftbid, innstillinger);
+        var id = NormalizeFtbid(ftbid, settings);
         if (eiendomId <= 0) throw new UgyldigSøkenummerException();
-        return lager.FjernAsync(id, eiendomId, avbrudd);
+        return repository.RemoveAsync(id, eiendomId, cancellationToken);
     }
 }

@@ -1,12 +1,12 @@
 using System;
-using Ftpb.Ftbid.Api.Konfigurasjon;
-using Ftpb.Ftbid.Api.Feilhandtering;
-using Ftpb.Ftbid.Api.Helse;
-using Ftpb.Ftbid.Application.Feil;
+using Ftpb.Ftbid.Api.Configuration;
+using Ftpb.Ftbid.Api.ErrorHandling;
+using Ftpb.Ftbid.Api.HealthChecks;
+using Ftpb.Ftbid.Application.Errors;
 using Ftpb.Ftbid.Application.Services;
-using Ftpb.Ftbid.Infrastructure.Persistens;
+using Ftpb.Ftbid.Infrastructure.Persistence;
 using System.Threading.RateLimiting;
-using Ftpb.Ftbid.Domain.Feil.Unntak;
+using Ftpb.Ftbid.Domain.Errors.Exceptions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -19,105 +19,105 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi;
 using Serilog;
 
-var bygger = WebApplication.CreateBuilder(args);
-if (bygger.Configuration.GetValue("ElasticApm:Enabled", true))
-    bygger.Services.AddAllElasticApm();
-var serilogAktivert = bygger.Configuration.GetValue("Serilog:Enabled", true);
-if (serilogAktivert)
-    bygger.Host.UseSerilog((kontekst, logging) =>
-        SerilogConfiguration.ConfigureLogging(logging, kontekst.Configuration, "logs-ftbid-backend"));
-var maskinportenAktivert = bygger.Configuration.GetValue("Maskinporten:Aktivert", true);
-bygger.Services.LeggTilFtbidServices(bygger.Configuration, bygger.Environment);
-bygger.Services.AddControllers().AddJsonOptions(valg =>
+var builder = WebApplication.CreateBuilder(args);
+if (builder.Configuration.GetValue("ElasticApm:Enabled", true))
+    builder.Services.AddAllElasticApm();
+var serilogEnabled = builder.Configuration.GetValue("Serilog:Enabled", true);
+if (serilogEnabled)
+    builder.Host.UseSerilog((context, logging) =>
+        SerilogConfiguration.ConfigureLogging(logging, context.Configuration, "logs-ftbid-backend"));
+var maskinportenEnabled = builder.Configuration.GetValue("Maskinporten:Aktivert", true);
+builder.Services.AddFtbidServices(builder.Configuration, builder.Environment);
+builder.Services.AddControllers().AddJsonOptions(options =>
 {
-    valg.JsonSerializerOptions.PropertyNamingPolicy = null;
-    JsonResponsoppsett.InkluderAlleVerdier(valg.JsonSerializerOptions);
+    options.JsonSerializerOptions.PropertyNamingPolicy = null;
+    JsonResponseConfiguration.IncludeAllValues(options.JsonSerializerOptions);
 });
-bygger.Services.Configure<ApiBehaviorOptions>(valg => valg.InvalidModelStateResponseFactory = kontekst =>
+builder.Services.Configure<ApiBehaviorOptions>(options => options.InvalidModelStateResponseFactory = context =>
 {
-    var feil = new DeserialiseringFeiletException("forespørselsmodellen");
-    var problem = kontekst.HttpContext.RequestServices.GetRequiredService<ProblemDetailsFactory>()
-        .CreateProblemDetails(kontekst.HttpContext, statusCode: StatusCodes.Status400BadRequest,
-            title: "Ugyldig forespørsel", detail: feil.Message, instance: kontekst.HttpContext.Request.Path);
-    problem.Extensions["ftbidFeil"] = FtbidFeil.FraUnntak(feil);
-    problem.Extensions["sporingsidentifikator"] = kontekst.HttpContext.TraceIdentifier;
-    var resultat = new BadRequestObjectResult(problem);
-    resultat.ContentTypes.Add("application/problem+json");
-    return resultat;
+    var error = new DeserializationFailedException("forespørselsmodellen");
+    var problem = context.HttpContext.RequestServices.GetRequiredService<ProblemDetailsFactory>()
+        .CreateProblemDetails(context.HttpContext, statusCode: StatusCodes.Status400BadRequest,
+            title: "Ugyldig forespørsel", detail: error.Message, instance: context.HttpContext.Request.Path);
+    problem.Extensions["ftbidFeil"] = FtbidError.FromException(error);
+    problem.Extensions["sporingsidentifikator"] = context.HttpContext.TraceIdentifier;
+    var result = new BadRequestObjectResult(problem);
+    result.ContentTypes.Add("application/problem+json");
+    return result;
 });
-bygger.Services.ConfigureHttpJsonOptions(valg =>
+builder.Services.ConfigureHttpJsonOptions(options =>
 {
-    valg.SerializerOptions.PropertyNamingPolicy = null;
-    JsonResponsoppsett.InkluderAlleVerdier(valg.SerializerOptions);
+    options.SerializerOptions.PropertyNamingPolicy = null;
+    JsonResponseConfiguration.IncludeAllValues(options.SerializerOptions);
 });
-bygger.Services.AddExceptionHandler<FtbidFeilhandtering>();
-bygger.Services.AddProblemDetails(valg => valg.CustomizeProblemDetails = kontekst =>
+builder.Services.AddExceptionHandler<FtbidExceptionHandler>();
+builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = context =>
 {
-    kontekst.ProblemDetails.Instance ??= kontekst.HttpContext.Request.Path;
-    kontekst.ProblemDetails.Extensions["sporingsidentifikator"] = kontekst.HttpContext.TraceIdentifier;
-    kontekst.ProblemDetails.Title = kontekst.ProblemDetails.Status switch
+    context.ProblemDetails.Instance ??= context.HttpContext.Request.Path;
+    context.ProblemDetails.Extensions["sporingsidentifikator"] = context.HttpContext.TraceIdentifier;
+    context.ProblemDetails.Title = context.ProblemDetails.Status switch
     {
         400 => "Ugyldig forespørsel", 401 => "Autentisering kreves", 403 => "Tilgang nektet",
-        404 => kontekst.ProblemDetails.Detail is null ? "Endepunktet finnes ikke" : kontekst.ProblemDetails.Title, 405 => "HTTP-metoden er ikke tillatt", 429 => "For mange forespørsler",
-        >= 500 => "Intern serverfeil", _ => kontekst.ProblemDetails.Title
+        404 => context.ProblemDetails.Detail is null ? "Endepunktet finnes ikke" : context.ProblemDetails.Title, 405 => "HTTP-metoden er ikke tillatt", 429 => "For mange forespørsler",
+        >= 500 => "Intern serverfeil", _ => context.ProblemDetails.Title
     };
 });
-bygger.Services.AddHealthChecks().AddCheck<PostgresHelsesjekk>("postgres");
-bygger.Services.AddRateLimiter(valg =>
+builder.Services.AddHealthChecks().AddCheck<PostgresHealthCheck>("postgres");
+builder.Services.AddRateLimiter(options =>
 {
-    valg.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    valg.AddPolicy("oppretting", kontekst => RateLimitPartition.GetFixedWindowLimiter(
-        kontekst.User.FindFirst("organisasjonsnummer")?.Value ?? "ukjent", _ => new FixedWindowRateLimiterOptions
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("oppretting", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.User.FindFirst("organisasjonsnummer")?.Value ?? "ukjent", _ => new FixedWindowRateLimiterOptions
         { PermitLimit = 200, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
 });
-bygger.Services.AddEndpointsApiExplorer();
-bygger.Services.AddSwaggerGen(valg =>
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(options =>
 {
-    valg.SchemaFilter<TilknytningSkjemaFilter>();
-    valg.OperationFilter<FtbidSokOperasjonsfilter>();
-    valg.SwaggerDoc("v1", new OpenApiInfo { Title = "Ftbid-servicen", Version = "v1", Description = "Prosjektidentifikatorer og identifikasjonsmetadata." });
-    if (maskinportenAktivert)
+    options.SchemaFilter<TilknytningSchemaFilter>();
+    options.OperationFilter<FtbidSokOperationFilter>();
+    options.SwaggerDoc("v1", new OpenApiInfo { Title = "Ftbid-servicen", Version = "v1", Description = "Prosjektidentifikatorer og identifikasjonsmetadata." });
+    if (maskinportenEnabled)
     {
-        valg.AddSecurityDefinition("Maskinporten", new OpenApiSecurityScheme
-        { Type = SecuritySchemeType.Http, Scheme = "bearer", BearerFormat = "JWT", Description = bygger.Environment.IsEnvironment("Local") || bygger.Environment.IsDevelopment()
+        options.AddSecurityDefinition("Maskinporten", new OpenApiSecurityScheme
+        { Type = SecuritySchemeType.Http, Scheme = "bearer", BearerFormat = "JWT", Description = builder.Environment.IsEnvironment("Local") || builder.Environment.IsDevelopment()
             ? "Local og Development krever kun et Bearer-token. Tokenets innhold og scopes valideres ikke."
             : "Tilgangstoken fra Maskinporten med les- eller endrescope." });
-        valg.AddSecurityRequirement(dokument => new OpenApiSecurityRequirement
-        { [new OpenApiSecuritySchemeReference("Maskinporten", dokument)] = [] });
+        options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
+        { [new OpenApiSecuritySchemeReference("Maskinporten", document)] = [] });
     }
 });
-var app = bygger.Build();
-if (serilogAktivert)
+var app = builder.Build();
+if (serilogEnabled)
     app.UseSerilogRequestLogging();
-var importerDevdata = bygger.Configuration.GetValue<bool>("Database:ImporterDevdata");
-if (importerDevdata && !bygger.Environment.IsDevelopment())
+var importDevdata = builder.Configuration.GetValue<bool>("Database:ImporterDevdata");
+if (importDevdata && !builder.Environment.IsDevelopment())
     throw new InvalidOperationException("Database:ImporterDevdata er bare tillatt i Development.");
 if (args.Contains("--migrer", StringComparer.Ordinal) || args.Contains("--importer", StringComparer.Ordinal))
 {
-    using var omfang = app.Services.CreateScope();
-    var database = omfang.ServiceProvider.GetRequiredService<FtbidDbContext>();
+    using var scope = app.Services.CreateScope();
+    var database = scope.ServiceProvider.GetRequiredService<FtbidDbContext>();
     await database.Database.MigrateAsync();
-    var plassering = Array.IndexOf(args, "--importer");
-    if (plassering >= 0)
+    var index = Array.IndexOf(args, "--importer");
+    if (index >= 0)
     {
-        if (plassering + 1 >= args.Length) throw new PåkrevdVerdiManglerException("Filsti etter --importer");
-        await omfang.ServiceProvider.GetRequiredService<IReferansedataImportService>()
-            .ImporterAsync(args[plassering + 1]);
+        if (index + 1 >= args.Length) throw new RequiredValueMissingException("Filsti etter --importer");
+        await scope.ServiceProvider.GetRequiredService<IReferansedataImportService>()
+            .ImportAsync(args[index + 1]);
     }
     return;
 }
-if (bygger.Configuration.GetValue<bool>("Database:MigrerVedOppstart") || importerDevdata)
+if (builder.Configuration.GetValue<bool>("Database:MigrerVedOppstart") || importDevdata)
 {
-    using var omfang = app.Services.CreateScope();
-    await omfang.ServiceProvider.GetRequiredService<FtbidDbContext>().Database.MigrateAsync();
+    using var scope = app.Services.CreateScope();
+    await scope.ServiceProvider.GetRequiredService<FtbidDbContext>().Database.MigrateAsync();
 }
-if (importerDevdata)
+if (importDevdata)
 {
-    using var omfang = app.Services.CreateScope();
-    var importert = await DevdataImport.ImporterAsync(
-        omfang.ServiceProvider.GetRequiredService<FtbidDbContext>(),
+    using var scope = app.Services.CreateScope();
+    var imported = await DevdataImport.ImportAsync(
+        scope.ServiceProvider.GetRequiredService<FtbidDbContext>(),
         Path.Combine(AppContext.BaseDirectory, "devdata", "lokal.sql.gz"));
-    app.Logger.LogInformation("Devdata: {Resultat}", importert ? "Importert fra lokalt snapshot" : "Allerede importert");
+    app.Logger.LogInformation("Devdata: {Resultat}", imported ? "Importert fra lokalt snapshot" : "Allerede importert");
 }
 app.UseExceptionHandler();
 app.UseStatusCodePages();
@@ -128,14 +128,14 @@ app.UseRateLimiter();
 app.MapControllers();
 app.MapHealthChecks("/helse", new HealthCheckOptions
 {
-    ResponseWriter = async (kontekst, rapport) => await kontekst.Response.WriteAsJsonAsync(new
+    ResponseWriter = async (context, rapport) => await context.Response.WriteAsJsonAsync(new
     { Status = rapport.Status == Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Healthy ? "Frisk" : "Usunn", Beskrivelse = rapport.Status == Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Healthy ? "Servicen og PostgreSQL er tilgjengelige." : "Databasen er ikke klar." })
 }).AllowAnonymous();
 app.MapGet("/helse/levende", () => Results.Ok(new { Status = "Tilgjengelig" })).AllowAnonymous().ExcludeFromDescription();
-if (bygger.Configuration.GetValue<bool>("Swagger:Aktivert"))
+if (builder.Configuration.GetValue<bool>("Swagger:Aktivert"))
 {
-    app.UseSwagger(valg => valg.RouteTemplate = "openapi/{documentName}.json");
-    app.UseSwaggerUI(valg => { valg.SwaggerEndpoint("/openapi/v1.json", "Ftbid-servicen v1"); valg.DocumentTitle = "Ftbid-servicen"; });
+    app.UseSwagger(options => options.RouteTemplate = "openapi/{documentName}.json");
+    app.UseSwaggerUI(options => { options.SwaggerEndpoint("/openapi/v1.json", "Ftbid-servicen v1"); options.DocumentTitle = "Ftbid-servicen"; });
 }
 app.Run();
 
