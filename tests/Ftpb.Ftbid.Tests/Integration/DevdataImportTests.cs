@@ -14,6 +14,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Ftpb.Ftbid.Infrastructure.Persistence;
+using Ftpb.Ftbid.Infrastructure.Referansedata;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Xunit;
@@ -94,6 +95,56 @@ public sealed class DevdataImportTests : IAsyncLifetime
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "lokalt-token");
         using var ugyldigToken = await client.GetAsync("/api/ftbid/707338700000000014");
         Assert.Equal(HttpStatusCode.Unauthorized, ugyldigToken.StatusCode);
+    }
+
+    [Fact]
+    public async Task DevOppstartFyllerKommuneregisteretEtterSnapshotOgVedNyOppstart()
+    {
+        using (var factory = CreateDevFactory())
+        using (var client = factory.CreateClient())
+        {
+            Assert.Equal(13131, await _database.Ftbider.CountAsync());
+            Assert.Equal(357, await _database.Kommuner.CountAsync());
+            Assert.True(await _database.Kommuner.AnyAsync(k => k.Kommunenummer == "4626"));
+        }
+
+        await _database.Kommuner.Where(k => k.Kommunenummer == "4626").ExecuteDeleteAsync();
+        var gyldigFra = new DateTimeOffset(2000, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        await _database.Kommuner.Where(k => k.Kommunenummer == "0301")
+            .ExecuteUpdateAsync(update => update.SetProperty(k => k.GyldigFra, gyldigFra));
+
+        using var startetPaNytt = CreateDevFactory();
+        using var klient = startetPaNytt.CreateClient();
+        Assert.Equal(357, await _database.Kommuner.CountAsync());
+        Assert.True(await _database.Kommuner.AnyAsync(k => k.Kommunenummer == "4626"));
+        Assert.Equal(gyldigFra, (await _database.Kommuner.SingleAsync(k => k.Kommunenummer == "0301")).GyldigFra);
+
+        WebApplicationFactory<Program> CreateDevFactory() =>
+            new WebApplicationFactory<Program>().WithWebHostBuilder(builder => builder
+                .UseEnvironment("Development")
+                .UseSetting("ConnectionStrings:Postgres", _database.Database.GetConnectionString())
+                .UseSetting("Database:BrukEntraId", "false")
+                .UseSetting("Database:ImporterDevdata", "true")
+                .UseSetting("Adresseberikelse:Aktivert", "false")
+                .UseSetting("ElasticApm:Enabled", "false")
+                .UseSetting("Serilog:Enabled", "false"));
+    }
+
+    [Fact]
+    public async Task KommuneregisterOppstartBrukerSammeSchemaSomEfCore()
+    {
+        await _database.Database.ExecuteSqlRawAsync("""
+            CREATE SCHEMA dev;
+            CREATE TABLE dev.kommune (LIKE public.kommune INCLUDING ALL);
+            """);
+        var connection = new NpgsqlConnectionStringBuilder(_database.Database.GetConnectionString()) { SearchPath = "dev,public" };
+        await using var devDatabase = new FtbidDbContext(
+            new DbContextOptionsBuilder<FtbidDbContext>().UseNpgsql(connection.ConnectionString).Options);
+
+        Assert.Equal(357, await KommuneregisterOppstart.LeggTilManglendeAsync(devDatabase));
+        Assert.Equal(0, await KommuneregisterOppstart.LeggTilManglendeAsync(devDatabase));
+        Assert.True(await devDatabase.Kommuner.AnyAsync(k => k.Kommunenummer == "4626"));
+        Assert.Empty(await _database.Kommuner.ToListAsync());
     }
 
     private sealed class TestAdresseoppslag(FtbidDbContext database, TaskCompletionSource<int> startet) : IMatrikkelAdresseoppslag

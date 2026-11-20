@@ -463,6 +463,10 @@ PostgreSQL-sekvenser kan likevel være flyttet frem. Neste oppstart kan prøve i
 Senere oppstarter og deploys hopper over importen når markeringen finnes, også hvis
 snapshotet senere endres. Et nytt snapshot er derfor ikke en synkroniseringsmekanisme.
 
+I `Development` legger API-et til manglende kommunenumre fra SSBs kommuneinndeling
+ved hver oppstart, etter migrering og eventuell snapshotimport. EF Core bruker samme
+tabellmapping som resten av API-et.
+
 Hvis dev eller test allerede har data uten importmarkering, avbrytes oppstarten med en tydelig feil.
 Da må eksisterende data avklares før førstegangsimport; løsningen tømmer ikke databasen.
 Markeringen lagres separat i hver database, slik at import i dev ikke hindrer import i test.

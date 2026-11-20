@@ -5,6 +5,7 @@ using Ftpb.Ftbid.Api.HealthChecks;
 using Ftpb.Ftbid.Application.Errors;
 using Ftpb.Ftbid.Application.Services;
 using Ftpb.Ftbid.Infrastructure.Persistence;
+using Ftpb.Ftbid.Infrastructure.Referansedata;
 using System.Threading.RateLimiting;
 using Ftpb.Ftbid.Domain.Errors.Exceptions;
 using Microsoft.AspNetCore.Builder;
@@ -118,6 +119,13 @@ if (importDevdata)
         scope.ServiceProvider.GetRequiredService<FtbidDbContext>(),
         Path.Combine(AppContext.BaseDirectory, "devdata", "lokal.sql.gz"));
     app.Logger.LogInformation("Devdata: {Resultat}", imported ? "Importert fra lokalt snapshot" : "Allerede importert");
+}
+if (app.Environment.IsDevelopment())
+{
+    using var scope = app.Services.CreateScope();
+    var database = scope.ServiceProvider.GetRequiredService<FtbidDbContext>();
+    var inserted = await KommuneregisterOppstart.LeggTilManglendeAsync(database);
+    app.Logger.LogInformation("Kommuneregister: {Antall} kommuner lagt til", inserted);
 }
 app.UseExceptionHandler();
 app.UseStatusCodePages();
